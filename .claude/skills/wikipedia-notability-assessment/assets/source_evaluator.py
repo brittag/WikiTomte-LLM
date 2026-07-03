@@ -1,0 +1,341 @@
+"""
+Source evaluator — classify and evaluate sources for notability assessment.
+
+Determines whether a given source (URL or description) counts as:
+- Significant coverage vs. trivial mention
+- Reliable vs. unreliable source
+- Independent vs. affiliated with the subject
+
+Usage:
+    from source_evaluator import SourceEvaluator
+
+    evaluator = SourceEvaluator()
+
+    result = evaluator.evaluate(
+        title="Nature profile of Dr. Smith",
+        source_type="news_feature",
+        url="https://nature.com/articles/profile",
+    )
+    # → {"reliable": True, "independent": True, "significant": True, "score": 9/10}
+"""
+
+import re
+from typing import Any, Dict, List, Optional
+
+
+# Reliable domains (news/academic)
+RELIABLE_DOMAINS: Dict[str, int] = {
+    # Major academic publishers
+    "nature.com": 10, "science.org": 10, "springer.com": 9,
+    "wiley.com": 9, "taylorandfrancis.com": 8, "sagepub.com": 8,
+    "oxfordjournals.org": 10, "cambridge.org": 9, "ieee.org": 8,
+    "acm.org": 8, "arxiv.org": 7, "pubmed.ncbi.nlm.nih.gov": 10,
+    "doi.org": 8, "jstor.org": 9,
+    # Major newspapers
+    "nytimes.com": 9, "washingtonpost.com": 9, "theguardian.com": 9,
+    "wsj.com": 9, "ft.com": 9, "reuters.com": 9, "apnews.com": 9,
+    "bbc.com": 9, "bbc.co.uk": 9, "bloomberg.com": 8,
+    "economist.com": 9, "newyorker.com": 9, "theatlantic.com": 8,
+    "latimes.com": 8, "chicagotribune.com": 8, "bostonglobe.com": 8,
+    "lemonde.fr": 8, "elpais.com": 8, "spiegel.de": 8,
+    "zeit.de": 8, "thetimes.co.uk": 8,
+    # Major magazines
+    "nationalgeographic.com": 8, "scientificamerican.com": 8,
+    "forbes.com": 6, "wired.com": 7, "arstechnica.com": 7,
+    "theverge.com": 6,
+}
+
+# Unreliable domains / sources that don't contribute to notability
+UNRELIABLE_PATTERNS: List[str] = [
+    r"imdb\.com", r"linkedin\.com", r"facebook\.com", r"twitter\.com",
+    r"instagram\.com", r"youtube\.com", r"tiktok\.com",
+    r"reddit\.com", r"quora\.com", r"medium\.com",
+    r"goodreads\.com", r"discogs\.com", r"musicbrainz\.org",
+    r"crunchbase\.com", r"angel\.co", r"zoominfo\.com",
+    r"wikipedia\.org", r"wikidata\.org", r"fandom\.com",
+    r"blogspot\.com", r"wordpress\.com", r"tumblr\.com",
+    r"britannica\.com", r"whoswho\.com", r"marquiswhoswho\.com",
+]
+
+# Source types and their typical characteristics
+SOURCE_TYPE_RATINGS: Dict[str, Dict[str, Any]] = {
+    "academic_journal": {"reliable": True, "significant_possible": True, "type": "academic"},
+    "news_feature": {"reliable": True, "significant_possible": True, "type": "news"},
+    # news_article CAN be significant — depends on depth, not type alone
+    "news_article": {"reliable": True, "significant_possible": None, "type": "news"},
+    "book": {"reliable": True, "significant_possible": True, "type": "book"},
+    "book_review": {"reliable": True, "significant_possible": True, "type": "review"},
+    "documentary": {"reliable": True, "significant_possible": True, "type": "documentary"},
+    "reference": {"reliable": False, "significant_possible": False, "type": "reference"},
+    "press_release": {"reliable": False, "significant_possible": False, "type": "press_release"},
+    "blog": {"reliable": False, "significant_possible": False, "type": "blog"},
+    "social_media": {"reliable": False, "significant_possible": False, "type": "social_media"},
+    "self_published": {"reliable": False, "significant_possible": False, "type": "self_published"},
+    "company_website": {"reliable": False, "significant_possible": False, "type": "company_website"},
+    "database": {"reliable": False, "significant_possible": False, "type": "database"},
+    "directory": {"reliable": False, "significant_possible": False, "type": "directory"},
+}
+
+# Keywords suggesting significant coverage
+SIGNIFICANCE_POSITIVE = [
+    "profile", "feature", "in-depth", "investigation", "biography",
+    "book-length", "documentary", "retrospective", "analysis",
+    "review of", "examination", "study of", "history of",
+    "portrait", "interview with", "conversation with",
+]
+
+# Keywords suggesting trivial/routine coverage
+SIGNIFICANCE_NEGATIVE = [
+    "press release", "announces", "launches", "partnership",
+    "appoints", "hires", "promoted", "named",
+    "briefly", "mentions", "in passing", "roundup",
+    "earnings", "quarterly", "financial results",
+    "match report", "game recap",
+    "obituary", "death notice",
+    # Note: bare "score" was removed because it causes false positives
+    # (e.g., "Score: 95 in peer review"). Use more specific patterns.
+]
+
+
+class SourceEvaluator:
+    """Evaluate sources for notability assessment."""
+
+    def evaluate(
+        self,
+        title: str = "",
+        source_type: str = "",
+        url: str = "",
+        description: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Evaluate a single source for notability.
+
+        Args:
+            title: Source title or headline
+            source_type: Type of source (news_feature, press_release, etc.)
+            url: Source URL (used for domain checking)
+            description: Free-form description of the source
+
+        Returns:
+            Dict with: reliable, independent, significant, score, confidence
+        """
+        result = {
+            "reliable": None,
+            "independent": None,
+            "significant": None,
+            "score": 0,
+            "confidence": "low",
+            "notes": [],
+        }
+
+        # Check domain reliability
+        if url:
+            domain_result = self._check_domain(url)
+            if domain_result is not None:
+                result["reliable"] = domain_result >= 6
+                result["score"] += domain_result / 10 * 5
+                result["notes"].append(
+                    f"Domain: {'reliable' if result['reliable'] else 'unreliable'} "
+                    f"(score: {domain_result}/10)"
+                )
+
+        # Check source type
+        if source_type in SOURCE_TYPE_RATINGS:
+            rating = SOURCE_TYPE_RATINGS[source_type]
+            if result["reliable"] is None:
+                result["reliable"] = rating["reliable"]
+            # Only set significant from type if the type is definitive
+            sp = rating["significant_possible"]
+            if sp is not None and result["significant"] is None:
+                result["significant"] = sp
+            result["notes"].append(f"Type: {source_type}")
+            if not rating["reliable"]:
+                result["notes"].append(
+                    "This source type does not contribute to notability."
+                )
+
+        # Check title/description for significance signals
+        combined = f"{title} {description}".lower()
+        significance_signals = self._evaluate_significance(combined)
+
+        if significance_signals["has_positive"]:
+            result["significant"] = True
+            result["score"] += 3
+            result["notes"].append(
+                f"Signals: {', '.join(significance_signals['positives'][:3])}"
+            )
+        if significance_signals["has_negative"]:
+            if result["significant"] is None:
+                result["significant"] = False
+            result["score"] -= 2
+            result["notes"].append(
+                f"Routine signals: {', '.join(significance_signals['negatives'][:3])}"
+            )
+
+        # Default independence (most external sources are independent)
+        if result["independent"] is None:
+            if source_type in ("press_release", "self_published", "company_website", "autobiography"):
+                result["independent"] = False
+                result["notes"].append("Not independent (self-published or affiliated)")
+            else:
+                result["independent"] = True
+
+        # Normalize score to 0–10
+        result["score"] = max(0, min(10, result["score"]))
+
+        # Confidence
+        score = result["score"]
+        if score >= 7:
+            result["confidence"] = "high"
+        elif score >= 4:
+            result["confidence"] = "medium"
+        else:
+            result["confidence"] = "low"
+
+        return result
+
+    def _check_domain(self, url: str) -> Optional[int]:
+        """Check domain against reliability database. Returns score 1-10 or None."""
+        domain_match = re.search(r"https?://([^/]+)", url.lower())
+        if not domain_match:
+            return None
+
+        domain = domain_match.group(1)
+
+        # Check exact matches
+        for reliable_domain, score in RELIABLE_DOMAINS.items():
+            if domain == reliable_domain or domain.endswith("." + reliable_domain):
+                return score
+
+        # Check unreliable patterns
+        for pattern in UNRELIABLE_PATTERNS:
+            if re.search(pattern, domain):
+                return 1
+
+        # Unknown domain — neutral
+        return 5
+
+    def _evaluate_significance(self, text: str) -> Dict[str, Any]:
+        """Check if text suggests significant or routine coverage."""
+        result = {"has_positive": False, "has_negative": False,
+                   "positives": [], "negatives": []}
+
+        for keyword in SIGNIFICANCE_POSITIVE:
+            if keyword in text:
+                result["has_positive"] = True
+                result["positives"].append(keyword)
+
+        for keyword in SIGNIFICANCE_NEGATIVE:
+            if keyword in text:
+                result["has_negative"] = True
+                result["negatives"].append(keyword)
+
+        return result
+
+    def classify_source(self, url: str = "", title: str = "") -> str:
+        """Classify a source by its likely type."""
+        combined = f"{url} {title}".lower()
+
+        # Self-published / blog platforms
+        if any(d in combined for d in ["blogspot", "wordpress", "medium",
+                                        "substack", "patreon"]):
+            return "blog"
+        if any(d in combined for d in ["wikipedia", "fandom"]):
+            return "self_published"
+
+        # Social media
+        if any(d in combined for d in ["linkedin", "facebook", "twitter",
+                                        "instagram", "youtube", "tiktok"]):
+            return "social_media"
+
+        # Press release
+        if "press release" in title.lower():
+            return "press_release"
+
+        # Academic
+        if any(d in combined for d in ["nature.com", "science.org", "springer",
+                                        "wiley", "ieee", "acm", "arxiv"]):
+            return "academic_journal"
+        if "google.com/books" in url or "google.books" in url:
+            return "book"
+
+        # Databases / directories
+        if any(d in combined for d in ["imdb", "discogs", "musicbrainz",
+                                        "goodreads", "worldcat"]):
+            return "database"
+        if any(d in combined for d in ["crunchbase", "zoominfo"]):
+            return "directory"
+
+        # Reviews
+        if "review" in title.lower():
+            return "book_review" if "book" in title.lower() else "review"
+
+        # Feature / in-depth content
+        if any(w in combined for w in ["profile", "feature", "in-depth"]):
+            return "news_feature"
+
+        # Major news outlets
+        major_news = [
+            "nytimes", "washingtonpost", "wsj", "theguardian", "guardian",
+            "bbc", "reuters", "apnews", "cnet", "cbsnews", "cnn", "nbcnews",
+            "abcnews", "usatoday", "bloomberg", "ft.com", "economist",
+            "newyorker", "theatlantic", "npr", "pbs", "latimes",
+            "chicagotribune", "bostonglobe", "time.com", "forbes", "wired",
+            "arstechnica", "theverge", "politico", "huffpost", "buzzfeednews",
+        ]
+        if any(d in combined for d in major_news):
+            return "news_article"
+
+        # Other known news/media (lower confidence)
+        other_news = [
+            "ibtimes", "cbc", "cnet", "newscientist", "spiegel",
+            "lemonde", "elpais", "zeit.de", "thelocal", "dw.com",
+        ]
+        if any(d in combined for d in other_news):
+            return "news_article"
+
+        # StackExchange / forums → reference material
+        if any(d in combined for d in ["stackoverflow", "stackexchange",
+                                        "stackexchange.com", "superuser"]):
+            return "reference"
+
+        # Personal blogs / self-published (catch-all)
+        if any(d in combined for d in ["blog.", ".blog.", "code", "dev.to"]):
+            return "blog"
+
+        return "unknown"
+
+
+# ---- CLI ----
+if __name__ == "__main__":
+    import argparse
+    import json
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="Evaluate a source for Wikipedia notability. "
+        "If no arguments are given, prints usage info."
+    )
+    parser.add_argument("--title", help="Source title or headline")
+    parser.add_argument("--type",
+                        help="Source type (academic_journal, news_article, news_feature, "
+                             "book, book_review, press_release, blog, social_media, "
+                             "self_published, reference, database, directory)")
+    parser.add_argument("--url", help="Source URL (used for domain reliability check)")
+    parser.add_argument("--desc", help="Free-form description of the source")
+
+    args = parser.parse_args()
+
+    if not any([args.title, args.type, args.url, args.desc]):
+        parser.print_help()
+        sys.exit(0)
+
+    evaluator = SourceEvaluator()
+    result = evaluator.evaluate(
+        title=args.title or "",
+        source_type=args.type or "",
+        url=args.url or "",
+        description=args.desc or "",
+    )
+
+    print(json.dumps(result, indent=2))
