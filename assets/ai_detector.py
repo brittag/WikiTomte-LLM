@@ -4,15 +4,22 @@ Batch scanner for LLM-indicator patterns in Wikipedia articles.
 
 Reads article titles from an input file, fetches prose via the Action API,
 matches era-based vocabulary and phrases, clusters hits into passages, and
-emits a JSON report.
+emits a CSV report (JSON available via --json).
+
+By default each article is scanned against all era bands (gpt4, gpt4o, gpt5,
+grok, generic). Use --era to restrict to a single era.
 
 Usage:
-    python3 ai_detector.py articles.txt --era gpt4o -o report.json
+    python3 ai_detector.py articles.txt -o report.csv
+    python3 ai_detector.py articles.txt --era gpt4o -o report.csv
+    python3 ai_detector.py articles.txt --json -o report.json
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import logging
 import os
@@ -111,6 +118,17 @@ class WikimediaClient:
 def load_vocab(path: Path = VOCAB_PATH) -> Dict[str, Any]:
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def resolve_eras(vocab_data: Dict[str, Any], era: Optional[str]) -> List[str]:
+    """Return era list to scan: all eras by default, or one if --era is set."""
+    all_eras = list(vocab_data["eras"].keys())
+    if era is None:
+        return all_eras
+    if era not in vocab_data["eras"]:
+        valid = ", ".join(all_eras)
+        raise ValueError(f"Unknown era '{era}'. Valid eras: {valid}")
+    return [era]
 
 
 def read_article_list(path: Path) -> List[str]:
@@ -386,18 +404,18 @@ def detect_cautions(title: str, categories: List[str], vocab_data: Dict[str, Any
     return cautions
 
 
-def scan_article(
-    client: WikimediaClient,
-    title: str,
-    era: str,
-    vocab_data: Dict[str, Any],
-    min_score: float,
-) -> Dict[str, Any]:
-    """Scan a single article and return a result dict."""
-    era_config = vocab_data["eras"][era]
-    weights = vocab_data["weights"]
+@dataclass
+class PreparedArticle:
+    title: str
+    pageid: int
+    url: str
+    full_text: str
+    sections: List[Section]
+    cautions: List[str]
 
-    page = fetch_page_data(client, title)
+
+def prepare_article(page: Dict[str, Any], title: str, vocab_data: Dict[str, Any]) -> PreparedArticle:
+    """Fetch metadata and strip wikitext once per article."""
     pageid = page["pageid"]
     url = page.get("canonicalurl", f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title)}")
 
@@ -416,21 +434,42 @@ def scan_article(
     ]
 
     full_text, sections = wikitext_to_sections(wikitext)
-    matches = find_matches(full_text, sections, era_config, weights)
-    suspicion_score = compute_suspicion_score(matches, len(full_text), weights)
-    passages = cluster_passages(full_text, matches, weights)
     cautions = detect_cautions(title, categories, vocab_data)
 
+    return PreparedArticle(
+        title=page.get("title", title),
+        pageid=pageid,
+        url=url,
+        full_text=full_text,
+        sections=sections,
+        cautions=cautions,
+    )
+
+
+def scan_prepared_article(
+    prepared: PreparedArticle,
+    era: str,
+    vocab_data: Dict[str, Any],
+    min_score: float,
+) -> Dict[str, Any]:
+    """Scan pre-fetched article text for one era band."""
+    era_config = vocab_data["eras"][era]
+    weights = vocab_data["weights"]
+
+    matches = find_matches(prepared.full_text, prepared.sections, era_config, weights)
+    suspicion_score = compute_suspicion_score(matches, len(prepared.full_text), weights)
+    passages = cluster_passages(prepared.full_text, matches, weights)
+
     return {
-        "title": page.get("title", title),
-        "pageid": pageid,
-        "url": url,
+        "title": prepared.title,
+        "pageid": prepared.pageid,
+        "url": prepared.url,
         "era": era,
         "era_label": era_config.get("label", era),
         "flagged": suspicion_score >= min_score and len(matches) >= 2,
         "suspicion_score": suspicion_score,
         "match_count": len(matches),
-        "text_length": len(full_text),
+        "text_length": len(prepared.full_text),
         "passages": [
             {
                 "section": p.section,
@@ -452,22 +491,171 @@ def scan_article(
             }
             for m in matches
         ],
-        "cautions": cautions,
+        "cautions": prepared.cautions,
     }
+
+
+def scan_article(
+    client: WikimediaClient,
+    title: str,
+    eras: List[str],
+    vocab_data: Dict[str, Any],
+    min_score: float,
+) -> List[Dict[str, Any]]:
+    """Fetch an article once and scan it for each requested era."""
+    page = fetch_page_data(client, title)
+    prepared = prepare_article(page, title, vocab_data)
+    return [
+        scan_prepared_article(prepared, era, vocab_data, min_score)
+        for era in eras
+    ]
+
+
+CSV_COLUMNS = [
+    "title",
+    "pageid",
+    "url",
+    "era",
+    "flagged",
+    "suspicion_score",
+    "match_count",
+    "text_length",
+    "section",
+    "passage_score",
+    "passage_text",
+    "indicators",
+    "indicator_types",
+    "cautions",
+    "error",
+]
+
+
+def _format_indicators(matches: List[Dict[str, Any]]) -> Tuple[str, str]:
+    indicators = "; ".join(m["indicator"] for m in matches)
+    types = "; ".join(m["type"] for m in matches)
+    return indicators, types
+
+
+def _articles_for_csv(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Collapse zero-hit era rows; emit one 'all' row when no era matched."""
+    from collections import OrderedDict
+
+    groups: OrderedDict[str, List[Dict[str, Any]]] = OrderedDict()
+    for article in articles:
+        groups.setdefault(article["title"], []).append(article)
+
+    rows: List[Dict[str, Any]] = []
+    for era_articles in groups.values():
+        with_hits = [a for a in era_articles if a["match_count"] > 0]
+        if with_hits:
+            rows.extend(with_hits)
+        else:
+            summary = dict(era_articles[0])
+            summary["era"] = "all"
+            summary["era_label"] = "all eras"
+            rows.append(summary)
+    return rows
+
+
+def _write_article_csv_rows(
+    writer: csv.DictWriter,
+    article: Dict[str, Any],
+) -> None:
+    base = {
+        "title": article["title"],
+        "pageid": article["pageid"],
+        "url": article["url"],
+        "era": article["era"],
+        "flagged": article["flagged"],
+        "suspicion_score": article["suspicion_score"],
+        "match_count": article["match_count"],
+        "text_length": article["text_length"],
+        "cautions": "; ".join(article.get("cautions", [])),
+        "error": "",
+    }
+    passages = article.get("passages", [])
+    if passages:
+        for passage in passages:
+            indicators, types = _format_indicators(passage.get("matches", []))
+            writer.writerow({
+                **base,
+                "section": passage["section"],
+                "passage_score": passage["score"],
+                "passage_text": passage["text"],
+                "indicators": indicators,
+                "indicator_types": types,
+            })
+    else:
+        writer.writerow({
+            **base,
+            "section": "",
+            "passage_score": "",
+            "passage_text": "",
+            "indicators": "",
+            "indicator_types": "",
+        })
+
+
+def format_report_csv(report: Dict[str, Any]) -> str:
+    """Render report as CSV with one row per passage (or per article if no passages)."""
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS, extrasaction="ignore")
+    writer.writeheader()
+
+    for article in _articles_for_csv(report.get("articles", [])):
+        _write_article_csv_rows(writer, article)
+
+    eras_label = ",".join(report.get("eras", [])) or report.get("era", "")
+    for err in report.get("errors", []):
+        writer.writerow({
+            "title": err["title"],
+            "pageid": "",
+            "url": "",
+            "era": eras_label,
+            "flagged": "",
+            "suspicion_score": "",
+            "match_count": "",
+            "text_length": "",
+            "section": "",
+            "passage_score": "",
+            "passage_text": "",
+            "indicators": "",
+            "indicator_types": "",
+            "cautions": "",
+            "error": err["error"],
+        })
+
+    return buf.getvalue()
+
+
+def write_report(
+    report: Dict[str, Any],
+    output_path: Optional[Path],
+    as_json: bool,
+) -> None:
+    if as_json:
+        content = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+    else:
+        content = format_report_csv(report)
+
+    if output_path:
+        output_path.write_text(content, encoding="utf-8")
+        log.info("Wrote %s report to %s", "JSON" if as_json else "CSV", output_path)
+    else:
+        print(content, end="")
 
 
 def run_batch(
     input_path: Path,
-    era: str,
     output_path: Optional[Path],
     min_score: float,
     user_agent: str,
     delay: float,
+    as_json: bool = False,
+    era: Optional[str] = None,
 ) -> Dict[str, Any]:
     vocab_data = load_vocab()
-    if era not in vocab_data["eras"]:
-        valid = ", ".join(vocab_data["eras"].keys())
-        raise ValueError(f"Unknown era '{era}'. Valid eras: {valid}")
+    eras = resolve_eras(vocab_data, era)
 
     titles = read_article_list(input_path)
     if not titles:
@@ -478,38 +666,36 @@ def run_batch(
     errors: List[Dict[str, str]] = []
 
     for title in titles:
-        log.info("Scanning: %s", title)
+        era_label = ", ".join(eras) if len(eras) > 1 else eras[0]
+        log.info("Scanning: %s (%s)", title, era_label)
         try:
-            result = scan_article(client, title, era, vocab_data, min_score)
-            articles.append(result)
+            results = scan_article(client, title, eras, vocab_data, min_score)
+            articles.extend(results)
         except Exception as exc:
             log.warning("Failed to scan %s: %s", title, exc)
             errors.append({"title": title, "error": str(exc)})
 
     flagged = sum(1 for a in articles if a.get("flagged"))
+    flagged_titles = {a["title"] for a in articles if a.get("flagged")}
     report = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "input_file": str(input_path),
-        "era": era,
-        "era_label": vocab_data["eras"][era].get("label", era),
+        "eras": eras,
+        "era": era if era else "all",
         "min_score": min_score,
         "summary": {
             "total": len(titles),
-            "scanned": len(articles),
+            "scanned": len(titles) - len(errors),
+            "results": len(articles),
             "flagged": flagged,
+            "articles_flagged": len(flagged_titles),
             "errors": len(errors),
         },
         "articles": articles,
         "errors": errors,
     }
 
-    output_json = json.dumps(report, indent=2, ensure_ascii=False)
-    if output_path:
-        output_path.write_text(output_json + "\n", encoding="utf-8")
-        log.info("Wrote report to %s", output_path)
-    else:
-        print(output_json)
-
+    write_report(report, output_path, as_json=as_json)
     return report
 
 
@@ -519,11 +705,12 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s articles.txt --era gpt4o -o report.json
+  %(prog)s articles.txt -o report.csv
+  %(prog)s articles.txt --era gpt4o -o report.csv
+  %(prog)s articles.txt --json -o report.json
   %(prog)s articles.txt --era gpt4 --min-score 0.5
-  %(prog)s articles.txt --era grok --delay 1.0 -o grok-report.json
 
-Eras: gpt4, gpt4o, gpt5, grok
+Eras (default: all): gpt4, gpt4o, gpt5, grok, generic
         """.strip(),
     )
     parser.add_argument(
@@ -532,13 +719,17 @@ Eras: gpt4, gpt4o, gpt5, grok
     )
     parser.add_argument(
         "--era",
-        required=True,
-        choices=["gpt4", "gpt4o", "gpt5", "grok"],
-        help="LLM era band to scan for (do not combine eras)",
+        choices=["gpt4", "gpt4o", "gpt5", "grok", "generic"],
+        help="Scan only this era band (default: all eras)",
     )
     parser.add_argument(
         "-o", "--output",
-        help="Write JSON report to this file (default: stdout)",
+        help="Write report to this file (default: stdout)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output JSON instead of CSV (default: CSV)",
     )
     parser.add_argument(
         "--min-score",
@@ -587,11 +778,12 @@ def main() -> None:
     try:
         run_batch(
             input_path=input_path,
-            era=args.era,
             output_path=output_path,
             min_score=args.min_score,
             user_agent=args.user_agent,
             delay=args.delay,
+            as_json=args.json,
+            era=args.era,
         )
     except (ValueError, PermissionError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

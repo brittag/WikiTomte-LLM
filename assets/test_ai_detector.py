@@ -10,12 +10,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ai_detector import (
+    _articles_for_csv,
     cluster_passages,
     compute_suspicion_score,
     detect_cautions,
     find_matches,
+    format_report_csv,
     load_vocab,
     read_article_list,
+    resolve_eras,
     wikitext_to_sections,
 )
 
@@ -49,7 +52,7 @@ SAMPLE_PROSE = (
 class TestVocabConfig(unittest.TestCase):
     def test_load_vocab_has_all_eras(self):
         vocab = load_vocab()
-        for era in ("gpt4", "gpt4o", "gpt5", "grok"):
+        for era in ("gpt4", "gpt4o", "gpt5", "grok", "generic"):
             self.assertIn(era, vocab["eras"])
             self.assertIn("vocab", vocab["eras"][era])
             self.assertIn("phrases", vocab["eras"][era])
@@ -58,6 +61,29 @@ class TestVocabConfig(unittest.TestCase):
         vocab = load_vocab()
         for key in ("phrase", "vocab", "section_header", "sentence_initial"):
             self.assertIn(key, vocab["weights"])
+
+    def test_resolve_eras_default_all(self):
+        vocab = load_vocab()
+        eras = resolve_eras(vocab, None)
+        self.assertEqual(eras, list(vocab["eras"].keys()))
+
+    def test_resolve_eras_single(self):
+        vocab = load_vocab()
+        self.assertEqual(resolve_eras(vocab, "grok"), ["grok"])
+        self.assertEqual(resolve_eras(vocab, "generic"), ["generic"])
+
+    def test_generic_era_has_cross_era_phrases(self):
+        vocab = load_vocab()
+        generic = vocab["eras"]["generic"]
+        phrases = set(generic["phrases"])
+        for expected in (
+            "serves as",
+            "independent coverage",
+            "valuable insights",
+            "in the heart of",
+            "despite these challenges",
+        ):
+            self.assertIn(expected, phrases)
 
 
 class TestWikitextParsing(unittest.TestCase):
@@ -203,6 +229,121 @@ class TestReportSchema(unittest.TestCase):
         self.assertIn("suspicion_score", parsed)
         self.assertIn("passages", parsed)
         self.assertGreater(parsed["match_count"], 0)
+
+
+class TestCsvOutput(unittest.TestCase):
+    def test_csv_has_header_and_passage_rows(self):
+        vocab = load_vocab()
+        era = "gpt4"
+        era_config = vocab["eras"][era]
+        weights = vocab["weights"]
+        _, sections = wikitext_to_sections(SAMPLE_WIKITEXT)
+        matches = find_matches(SAMPLE_PROSE, sections, era_config, weights)
+        score = compute_suspicion_score(matches, len(SAMPLE_PROSE), weights)
+        passages = cluster_passages(SAMPLE_PROSE, matches, weights)
+
+        report = {
+            "era": era,
+            "articles": [{
+                "title": "Test Subject",
+                "pageid": 1,
+                "url": "https://en.wikipedia.org/wiki/Test_Subject",
+                "era": era,
+                "flagged": score >= 0.4 and len(matches) >= 2,
+                "suspicion_score": score,
+                "match_count": len(matches),
+                "text_length": len(SAMPLE_PROSE),
+                "passages": [
+                    {
+                        "section": p.section,
+                        "text": p.text,
+                        "char_start": p.char_start,
+                        "char_end": p.char_end,
+                        "score": p.score,
+                        "matches": p.matches,
+                    }
+                    for p in passages
+                ],
+                "cautions": [],
+            }],
+            "errors": [],
+        }
+
+        csv_text = format_report_csv(report)
+        lines = csv_text.strip().splitlines()
+        self.assertTrue(lines[0].startswith("title,"))
+        self.assertGreater(len(lines), 1)
+        self.assertIn("Test Subject", csv_text)
+        self.assertIn("crucial role", csv_text)
+
+
+class TestMultiEraCsv(unittest.TestCase):
+    def test_zero_hit_eras_collapsed_to_all(self):
+        articles = [
+            {
+                "title": "Example",
+                "pageid": 1,
+                "url": "https://en.wikipedia.org/wiki/Example",
+                "era": "gpt4",
+                "flagged": False,
+                "suspicion_score": 0.0,
+                "match_count": 0,
+                "text_length": 1000,
+                "passages": [],
+                "cautions": [],
+            },
+            {
+                "title": "Example",
+                "pageid": 1,
+                "url": "https://en.wikipedia.org/wiki/Example",
+                "era": "gpt4o",
+                "flagged": False,
+                "suspicion_score": 0.0,
+                "match_count": 0,
+                "text_length": 1000,
+                "passages": [],
+                "cautions": [],
+            },
+        ]
+        collapsed = _articles_for_csv(articles)
+        self.assertEqual(len(collapsed), 1)
+        self.assertEqual(collapsed[0]["era"], "all")
+
+    def test_only_eras_with_hits_in_csv(self):
+        articles = [
+            {
+                "title": "Example",
+                "pageid": 1,
+                "url": "https://en.wikipedia.org/wiki/Example",
+                "era": "gpt4",
+                "flagged": True,
+                "suspicion_score": 0.8,
+                "match_count": 3,
+                "text_length": 1000,
+                "passages": [{
+                    "section": "Lead",
+                    "text": "crucial role text",
+                    "score": 0.5,
+                    "matches": [{"indicator": "crucial role", "type": "phrase"}],
+                }],
+                "cautions": [],
+            },
+            {
+                "title": "Example",
+                "pageid": 1,
+                "url": "https://en.wikipedia.org/wiki/Example",
+                "era": "gpt4o",
+                "flagged": False,
+                "suspicion_score": 0.0,
+                "match_count": 0,
+                "text_length": 1000,
+                "passages": [],
+                "cautions": [],
+            },
+        ]
+        collapsed = _articles_for_csv(articles)
+        self.assertEqual(len(collapsed), 1)
+        self.assertEqual(collapsed[0]["era"], "gpt4")
 
 
 if __name__ == "__main__":
