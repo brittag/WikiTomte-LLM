@@ -1,0 +1,5 @@
+# Example article list for batch-ai-scan.sh
+# One title per line. Lines starting with # are ignored.
+
+Albert Einstein
+Python (programming language)

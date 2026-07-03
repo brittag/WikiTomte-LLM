@@ -1,0 +1,2 @@
+requests>=2.28.0
+mwparserfromhell>=0.6.5
