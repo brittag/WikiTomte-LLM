@@ -4,7 +4,7 @@ CirrusSearch triage tool — find candidate articles via Wikipedia search,
 enrich snippets with era indicators, and export a reviewable CSV + articles.txt.
 
 Usage:
-    python3 search_triage.py --random -o triage.csv --write-articles candidates.txt
+    python3 search_triage.py -o triage.csv --write-articles candidates.txt
     python3 search_triage.py --phrase "crucial role" --narrow underscore emphasizing -o triage.csv
     python3 search_triage.py --query '"crucial role" emphasize underscore' --era gpt4o -o triage.csv
 """
@@ -42,18 +42,16 @@ from config import get_user_agent
 log = logging.getLogger("search_triage")
 
 WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
-ERA_POOL = ["gpt4", "gpt4o", "gpt5", "grok"]
-SRPROP = "size|wordcount|timestamp|snippet|sectiontitle|sectionsnippet|score"
+ERA_POOL = ["gpt4", "gpt4o", "gpt5"]
+SRPROP = "size|wordcount|timestamp|snippet|sectiontitle|sectionsnippet"
 
 TRIAGE_COLUMNS = [
     "title",
-    "pageid",
     "url",
     "prioritize",
     "ai_tagged",
     "era",
     "query",
-    "score",
     "wordcount",
     "section",
     "snippet",
@@ -209,33 +207,67 @@ def eligible_narrowers(phrase: str, vocab: List[str]) -> List[str]:
     return [w for w in vocab if w.lower() not in lower_phrase]
 
 
+def _phrase_mode_available(era_config: Dict[str, Any]) -> bool:
+    vocab = era_config.get("vocab", [])
+    return any(
+        len(eligible_narrowers(phrase, vocab)) >= 2
+        for phrase in era_config.get("phrases", [])
+    )
+
+
+def _vocab_mode_available(era_config: Dict[str, Any]) -> bool:
+    return len(era_config.get("vocab", [])) >= 3
+
+
 def pick_random_search(
     vocab_data: Dict[str, Any],
     seed: Optional[int] = None,
-) -> Tuple[str, str, str, List[str]]:
+) -> Tuple[str, str, Optional[str], List[str]]:
     """
-    Pick era, phrase, and 2 narrowers from ai_vocab.json.
+    Pick era and search terms from ai_vocab.json.
 
-    Skips eras with no phrases. Raises ValueError if no valid combo exists.
-    Returns (query_string, era, phrase, narrowers).
+    Randomly uses phrase mode (1 phrase + 2 narrowers) or vocab mode (3 words).
+    Returns (query_string, era, phrase_or_none, terms).
     """
     rng = random.Random(seed)
-    eras_with_phrases = [
-        era for era in ERA_POOL if vocab_data["eras"][era].get("phrases")
+    eligible_eras = [
+        era for era in ERA_POOL
+        if _phrase_mode_available(vocab_data["eras"][era])
+        or _vocab_mode_available(vocab_data["eras"][era])
     ]
-    if not eras_with_phrases:
-        raise ValueError("No eras with phrases available for --random")
+    if not eligible_eras:
+        raise ValueError("No eras available for random search")
 
-    era = rng.choice(eras_with_phrases)
+    era = rng.choice(eligible_eras)
     era_config = vocab_data["eras"][era]
-    phrase = rng.choice(era_config["phrases"])
+    phrase_ok = _phrase_mode_available(era_config)
+    vocab_ok = _vocab_mode_available(era_config)
+
+    if phrase_ok and vocab_ok:
+        use_vocab = rng.random() < 0.5
+    else:
+        use_vocab = vocab_ok
+
+    if use_vocab:
+        words = rng.sample(era_config["vocab"], 3)
+        return build_vocab_query(words), era, None, words
+
+    phrases_with_narrowers = [
+        phrase for phrase in era_config.get("phrases", [])
+        if len(eligible_narrowers(phrase, era_config.get("vocab", []))) >= 2
+    ]
+    phrase = rng.choice(phrases_with_narrowers)
     candidates = eligible_narrowers(phrase, era_config.get("vocab", []))
-    if len(candidates) < 2:
-        raise ValueError(
-            f"Cannot pick 2 narrowers for era '{era}' phrase '{phrase}'"
-        )
     narrow = rng.sample(candidates, 2)
     return build_query(phrase, narrow), era, phrase, narrow
+
+
+def build_vocab_query(words: List[str]) -> str:
+    """Build CirrusSearch query from unquoted vocab words."""
+    parts = [w.strip() for w in words if w.strip()]
+    if not parts:
+        raise ValueError("At least one vocab word is required")
+    return " ".join(parts)
 
 
 def build_query(phrase: str, narrow: List[str]) -> str:
@@ -296,7 +328,6 @@ def enrich_result(
     ai_tagged: bool = False,
 ) -> Dict[str, Any]:
     title = hit.get("title", "")
-    pageid = hit.get("pageid", "")
     url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
 
     snippet_raw = hit.get("snippet", "") or hit.get("sectionsnippet", "")
@@ -338,11 +369,9 @@ def enrich_result(
 
     return {
         "title": title,
-        "pageid": pageid,
         "url": url,
         "era": era,
         "query": query,
-        "score": hit.get("score", ""),
         "wordcount": hit.get("wordcount", ""),
         "section": section,
         "snippet": snippet,
@@ -355,12 +384,12 @@ def enrich_result(
 
 
 def sort_triage_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Sort by prioritize (yes, maybe, no), then CirrusSearch score descending."""
+    """Sort by prioritize (yes, maybe, no), then title."""
     return sorted(
         rows,
         key=lambda r: (
             PRIORITIZE_ORDER.get(r.get("prioritize", ""), 99),
-            -float(r.get("score") or 0),
+            r.get("title", "").lower(),
         ),
     )
 
@@ -393,25 +422,9 @@ def resolve_search_params(
     era: Optional[str],
     seed: Optional[int],
     *,
-    random_mode: bool = False,
     vocab_data: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, str]:
     """Return (query_string, era)."""
-    if random_mode:
-        if query or phrase:
-            raise ValueError("--random cannot be combined with --query or --phrase")
-        if era:
-            raise ValueError("--random cannot be combined with --era")
-        if narrow:
-            raise ValueError("--random cannot be combined with --narrow")
-        if vocab_data is None:
-            raise ValueError("vocab_data required for --random")
-        query_str, chosen_era, chosen_phrase, chosen_narrow = pick_random_search(
-            vocab_data, seed=seed
-        )
-        log.info("Random search: era=%s phrase=%r narrowers=%s", chosen_era, chosen_phrase, chosen_narrow)
-        return query_str, chosen_era
-
     if query:
         if not era:
             raise ValueError("--era is required when using --query (freeform mode)")
@@ -426,7 +439,26 @@ def resolve_search_params(
             log.info("Random era selected: %s", chosen_era)
         return build_query(phrase, narrow), chosen_era
 
-    raise ValueError("Provide --random, --query, or --phrase (era builder)")
+    if era:
+        raise ValueError("--era requires --query or --phrase")
+    if narrow:
+        raise ValueError("--narrow requires --phrase")
+    if vocab_data is None:
+        raise ValueError("vocab_data required for random search")
+    query_str, chosen_era, chosen_phrase, chosen_terms = pick_random_search(
+        vocab_data, seed=seed
+    )
+    if chosen_phrase:
+        log.info(
+            "Random search: era=%s mode=phrase phrase=%r narrowers=%s",
+            chosen_era, chosen_phrase, chosen_terms,
+        )
+    else:
+        log.info(
+            "Random search: era=%s mode=vocab terms=%s",
+            chosen_era, chosen_terms,
+        )
+    return query_str, chosen_era
 
 
 def run_triage(
@@ -435,7 +467,6 @@ def run_triage(
     narrow: List[str],
     era: Optional[str],
     seed: Optional[int],
-    random_mode: bool,
     limit: int,
     output_path: Optional[Path],
     articles_path: Optional[Path],
@@ -447,7 +478,6 @@ def run_triage(
 
     query_str, chosen_era = resolve_search_params(
         query, phrase, narrow, era, seed,
-        random_mode=random_mode,
         vocab_data=vocab_data,
     )
     era_config = vocab_data["eras"][chosen_era]
@@ -489,9 +519,9 @@ def run_triage(
 
     warnings: List[str] = []
     if len(rows) < 10:
-        warnings.append(f"Only {len(rows)} results — query may be too narrow (doc suggests dozens to hundreds)")
+        warnings.append(f"Only {len(rows)} results — query may be too narrow")
     if len(rows) > 500:
-        warnings.append(f"{len(rows)} results — query may be too broad (doc suggests dozens to hundreds)")
+        warnings.append(f"{len(rows)} results — query may be too broad")
 
     for w in warnings:
         log.warning(w)
@@ -523,21 +553,16 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --random -o triage.csv --write-articles candidates.txt
+  %(prog)s -o triage.csv --write-articles candidates.txt
   %(prog)s --phrase "crucial role" --narrow underscore emphasizing -o triage.csv
   %(prog)s --query '"crucial role" emphasize underscore' --era gpt4o -o triage.csv
         """.strip(),
-    )
-    parser.add_argument(
-        "--random",
-        action="store_true",
-        help="Pick era, phrase, and 2 narrowers from ai_vocab.json (skips eras with no phrases)",
     )
     parser.add_argument("--query", help="Raw CirrusSearch query (requires --era)")
     parser.add_argument("--era", choices=ERA_POOL, help="Era band (random in era-builder if omitted)")
     parser.add_argument("--phrase", help="Target phrase for era builder (2-4 words)")
     parser.add_argument("--narrow", nargs="+", default=[], help="Narrowing vocab words for era builder")
-    parser.add_argument("--seed", type=int, help="Seed for reproducible --random or era-builder era selection")
+    parser.add_argument("--seed", type=int, help="Seed for reproducible random search or era-builder era selection")
     parser.add_argument("--limit", type=int, default=100, help="Max search results (default: 100)")
     parser.add_argument("-o", "--output", help="Write triage CSV to this file")
     parser.add_argument("--write-articles", help="Write article titles to this file for ai_detector.py")
@@ -568,7 +593,6 @@ def main() -> None:
             narrow=args.narrow,
             era=args.era,
             seed=args.seed,
-            random_mode=args.random,
             limit=args.limit,
             output_path=output_path,
             articles_path=articles_path,

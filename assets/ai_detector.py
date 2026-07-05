@@ -7,7 +7,7 @@ matches era-based vocabulary and phrases, clusters hits into passages, and
 emits a CSV report (JSON available via --json).
 
 By default each article is scanned against all era bands (gpt4, gpt4o, gpt5,
-grok, generic). Use --era to restrict to a single era.
+generic). Use --era to restrict to a single era.
 
 Usage:
     python3 ai_detector.py articles.txt -o report.csv
@@ -535,20 +535,6 @@ def cluster_passages(
     return passages
 
 
-def detect_cautions(title: str, categories: List[str], vocab_data: Dict[str, Any]) -> List[str]:
-    cautions: List[str] = []
-    haystack = (title + " " + " ".join(categories)).lower()
-    caution_kw = vocab_data.get("caution_keywords", {})
-    caution_msgs = vocab_data.get("caution_messages", {})
-
-    for category, keywords in caution_kw.items():
-        if any(kw.lower() in haystack for kw in keywords):
-            msg = caution_msgs.get(category)
-            if msg and msg not in cautions:
-                cautions.append(msg)
-    return cautions
-
-
 @dataclass
 class PreparedArticle:
     title: str
@@ -584,9 +570,7 @@ def prepare_article(page: Dict[str, Any], title: str, vocab_data: Dict[str, Any]
         ai_tagged = page_has_ai_generated_category(categories)
 
     full_text, sections = wikitext_to_sections(wikitext)
-    cautions = detect_cautions(title, categories, vocab_data)
-    if ai_tagged and AI_GENERATED_CAUTION not in cautions:
-        cautions.append(AI_GENERATED_CAUTION)
+    cautions = [AI_GENERATED_CAUTION] if ai_tagged else []
 
     return PreparedArticle(
         title=page.get("title", title),
@@ -667,7 +651,6 @@ def scan_article(
 
 CSV_COLUMNS = [
     "title",
-    "pageid",
     "url",
     "era",
     "ai_tagged",
@@ -727,7 +710,6 @@ def _write_article_csv_rows(
 ) -> None:
     base = {
         "title": article["title"],
-        "pageid": article["pageid"],
         "url": article["url"],
         "era": article["era"],
         "ai_tagged": "yes" if article.get("ai_tagged") else "no",
@@ -776,7 +758,6 @@ def format_report_csv(report: Dict[str, Any]) -> str:
     for err in report.get("errors", []):
         writer.writerow({
             "title": err["title"],
-            "pageid": "",
             "url": "",
             "era": eras_label,
             "ai_tagged": "",
@@ -880,7 +861,7 @@ Examples:
   %(prog)s articles.txt --json -o report.json
   %(prog)s articles.txt --era gpt4 --min-score 0.5
 
-Eras (default: all): gpt4, gpt4o, gpt5, grok, generic
+Eras (default: all): gpt4, gpt4o, gpt5, generic
         """.strip(),
     )
     parser.add_argument(
@@ -889,7 +870,7 @@ Eras (default: all): gpt4, gpt4o, gpt5, grok, generic
     )
     parser.add_argument(
         "--era",
-        choices=["gpt4", "gpt4o", "gpt5", "grok", "generic"],
+        choices=["gpt4", "gpt4o", "gpt5", "generic"],
         help="Scan only this era band (default: all eras)",
     )
     parser.add_argument(

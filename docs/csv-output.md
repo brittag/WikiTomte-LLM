@@ -17,9 +17,8 @@ Articles with multiple suspicious passages appear on **multiple rows**. When all
 | Column | Description |
 |--------|-------------|
 | `title` | Wikipedia article title |
-| `pageid` | Wikipedia page ID (stable numeric identifier) |
 | `url` | Canonical URL to the article |
-| `era` | LLM era band for this row (`gpt4`, `gpt4o`, `gpt5`, `grok`, `generic`, or `all` when no era had matches). By default each article is scanned against all eras; use `--era` to restrict to one |
+| `era` | LLM era band for this row (`gpt4`, `gpt4o`, `gpt5`, `generic`, or `all` when no era had matches). By default each article is scanned against all eras; use `--era` to restrict to one |
 | `ai_tagged` | `yes` if the article wikitext contains `{{AI-generated}}` or `{{AI-generated|date=...}}`, or has the template's maintenance category; `no` otherwise. Informational — scanning still runs |
 | `flagged` | `True` if the article met the flag threshold: `suspicion_score` ≥ `--min-score` (default 0.4) **and** at least 2 indicator matches. `False` otherwise. This is a triage hint, not proof of LLM authorship |
 | `suspicion_score` | Article-level score from 0.0 to 1.0, based on weighted indicator matches normalized by article length. Higher values mean more/coarser pattern hits |
@@ -30,14 +29,14 @@ Articles with multiple suspicious passages appear on **multiple rows**. When all
 | `passage_text` | Excerpt of article prose surrounding the matched indicators (~200 characters of context on each side). This is the primary column to review manually |
 | `indicators` | Semicolon-separated list of matched words/phrases in this passage (e.g. `crucial role; underscore; highlighting`) |
 | `indicator_types` | Semicolon-separated match types, parallel to `indicators`. Possible values: `phrase` (multi-word target phrase), `vocab` (single era vocabulary word), `sentence_initial` (e.g. `Additionally,` at sentence start), `section_header` (suspicious section title), `title_case_heading` (section heading uses title case instead of Wikipedia sentence case), `punctuation` (e.g. em dash `—`) |
-| `cautions` | Semicolon-separated notes about possible false-positive contexts (e.g. technology or sociology articles where some phrasing is more expected). Informational only — matches are not suppressed |
+| `cautions` | Note when the article is already tagged with `{{AI-generated}}`. Empty otherwise |
 | `error` | Error message if the article failed to scan. Empty on successful rows |
 
 ## CLI options
 
 | Flag | Description |
 |------|-------------|
-| `--era` | Scan one era only: `gpt4`, `gpt4o`, `gpt5`, `grok`, or `generic` (default: all eras) |
+| `--era` | Scan one era only: `gpt4`, `gpt4o`, `gpt5`, or `generic` (default: all eras) |
 | `--json` | Write JSON instead of CSV |
 | `--min-score` | Flag threshold 0.0–1.0 (default: 0.4); article must also have ≥2 matches |
 | `--delay` | Seconds between API requests (default: 0.5) |

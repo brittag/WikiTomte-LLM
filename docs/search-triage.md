@@ -6,7 +6,7 @@ The search triage tool runs a single CirrusSearch query per invocation and write
 
 ```bash
 # Step 1: Search + triage
-python3 assets/search_triage.py --random \
+python3 assets/search_triage.py \
   -o triage.csv --write-articles candidates.txt
 
 # Review triage.csv; edit candidates.txt to remove false positives
@@ -19,14 +19,14 @@ python3 assets/ai_detector.py candidates.txt -o report.csv
 
 | Mode | Example |
 |------|---------|
-| Random | `--random` |
+| Random (default) | `-o triage.csv --write-articles candidates.txt` |
 | Era builder (random era) | `--phrase "crucial role" --narrow underscore emphasizing` |
 | Era builder (fixed era) | `--era gpt4o --phrase "crucial role" --narrow underscore` |
 | Freeform | `--query '"crucial role" emphasize underscore' --era gpt4o` |
 
-**`--random`** picks an era (skipping eras with no phrases), a target phrase from that era, and 2 narrowers from its vocab. Use `--seed` to reproduce the draw.
+**Random search (default)** picks a random era from `gpt4`, `gpt4o`, and `gpt5`, then either a target phrase plus 2 narrowers from its vocab, or 3 vocab words with no phrase. Use `--seed` to reproduce the draw.
 
-**One era per query.** The era builder picks randomly from `gpt4`, `gpt4o`, `gpt5`, `grok` when `--era` is omitted.
+**One era per query.** The era builder picks randomly from `gpt4`, `gpt4o`, and `gpt5` when `--era` is omitted.
 
 Freeform `--query` requires `--era` for snippet indicator scanning.
 
@@ -35,13 +35,11 @@ Freeform `--query` requires `--era` for snippet indicator scanning.
 | Column | Description |
 |--------|-------------|
 | `title` | Article title (use in `articles.txt` for batch scan) |
-| `pageid` | Wikipedia page ID |
 | `url` | Link to article |
 | `prioritize` | `yes` = extra indicators or header hit; `maybe` = query terms only; `no` = likely false positive or already tagged with `{{AI-generated}}` |
 | `ai_tagged` | `yes` if the article lead contains `{{AI-generated}}` (including `{{AI-generated|date=...}}`); `no` otherwise. Tagged articles are deprioritized (`prioritize=no`) but remain in the CSV |
 | `era` | Era band used for snippet indicator scan |
 | `query` | Full CirrusSearch query executed |
-| `score` | CirrusSearch relevance score |
 | `wordcount` | Article word count |
 | `section` | Section title from search hit (if any) |
 | `snippet` | Search excerpt with HTML stripped |

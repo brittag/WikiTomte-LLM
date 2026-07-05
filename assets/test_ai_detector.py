@@ -17,7 +17,6 @@ from ai_detector import (
     _articles_for_csv,
     cluster_passages,
     compute_suspicion_score,
-    detect_cautions,
     find_matches,
     format_report_csv,
     has_ai_generated_template,
@@ -62,7 +61,7 @@ SAMPLE_PROSE = (
 class TestVocabConfig(unittest.TestCase):
     def test_load_vocab_has_all_eras(self):
         vocab = load_vocab()
-        for era in ("gpt4", "gpt4o", "gpt5", "grok", "generic"):
+        for era in ("gpt4", "gpt4o", "gpt5", "generic"):
             self.assertIn(era, vocab["eras"])
             self.assertIn("vocab", vocab["eras"][era])
             self.assertIn("phrases", vocab["eras"][era])
@@ -79,7 +78,6 @@ class TestVocabConfig(unittest.TestCase):
 
     def test_resolve_eras_single(self):
         vocab = load_vocab()
-        self.assertEqual(resolve_eras(vocab, "grok"), ["grok"])
         self.assertEqual(resolve_eras(vocab, "generic"), ["generic"])
 
     def test_generic_era_has_cross_era_phrases(self):
@@ -317,23 +315,6 @@ class TestClustering(unittest.TestCase):
             self.assertIn("text", p.__dict__)
             self.assertGreater(len(p.matches), 0)
             self.assertGreaterEqual(p.score, 0.0)
-
-
-class TestCautions(unittest.TestCase):
-    def setUp(self):
-        self.vocab = load_vocab()
-
-    def test_tech_caution(self):
-        cautions = detect_cautions(
-            "Example Software",
-            ["Video game developers", "Windows software"],
-            self.vocab,
-        )
-        self.assertTrue(any("technology" in c.lower() for c in cautions))
-
-    def test_no_caution_for_generic_title(self):
-        cautions = detect_cautions("Albert Einstein", ["20th-century physicists"], self.vocab)
-        self.assertEqual(cautions, [])
 
 
 class TestInputFile(unittest.TestCase):

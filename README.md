@@ -5,7 +5,7 @@ This tool is an experiment in auto-identifying potential undetected LLM-generate
 What you can do with this tool:
 
 1. **Create a candidate article list.** Run a command to create a list of articles with potential LLM-generated text by searching all articles for random combinations of AI vocabulary. You get a CSV of search results and a plain-text list of article names. You can import CSVs into Google Sheets or another spreadsheet application to sort, filter, and make decisions.
-1. **Scan articles to find suspicious passages.** Run another command to scan each article on the list for significant LLM vocabulary overall and particularly suspicious passages. You get a CSV with all of the data for review.
+2. **Scan articles to find suspicious passages.** Run another command to scan each article on the list for significant LLM vocabulary overall and particularly suspicious passages. You get a CSV with all of the data for review.
 
 (You can skip directly to scanning if you want to provide your own list of articles to scan, such as a list you made using [Petscan](https://meta.wikimedia.org/wiki/PetScan/en).)
 
@@ -15,22 +15,39 @@ This method tends to find articles with promotional content in general, includin
 
 This tool was vibecoded by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade), with [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) made by [User:Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)). It is called WikiTomte-LLM because a [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always.
 
+Triage:
+
+[!Screenshot of triage](docs/search-triage-screenshot.png)
+
+Output:
+
+[!Screenshot of output](docs/scan-screenshot.png)
+
 ## Setup
 
-```bash
+Download and install the code:
+
+```
+git clone https://github.com/brittag/WikiTomte-LLM.git
+cd WikiTomte-LLM
 pip install -r requirements.txt
-cp config.example.json config.json
-# Edit config.json with your User-Agent contact info
 ```
 
-You need to set up a unique User-Agent, per [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy). Copy `config.example.json` to `config.json` and replace the placeholder with your real contact info.
+Set up a unique User-Agent, per [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy). Copy `config.example.json` to `config.json` and replace the placeholder with your email address or Wikipedia username.
+
+```bash
+cp config.example.json config.json
+# Edit config.json to add your contact info
+```
+
+
 
 ## Start
 
-**Step 1: Search.** Find candidate articles by searching Wikipedia for random combinations of AI vocabulary words, and review the list of search results with excerpts.
+**Step 1: Search.** Find candidate articles by searching Wikipedia for random combinations of AI vocabulary words, and review the list of search results with excerpts. Returns a maximum of 100 results by default.
 
 ```bash
-python3 assets/search_triage.py --random \
+python3 assets/search_triage.py \
   -o triage.csv --write-articles candidates.txt
 ```
 
@@ -56,9 +73,11 @@ See [examples/articles.txt](examples/articles.txt) for the input format (one tit
 
 ## Advanced options
 
+
+
 ### Custom search queries
 
-`--random` is the easiest starting point. If you want to search using your own CirrusSearch strings, use `--query` with `--era`:
+By default, the search picks a random era, then either a phrase plus 2 narrowers or 3 vocab words from the AI vocabulary. If you want to search using your own CirrusSearch strings, use `--query` with `--era`:
 
 ```bash
 python3 assets/search_triage.py \
@@ -70,7 +89,7 @@ More query modes and examples: [docs/search-triage.md](docs/search-triage.md).
 
 ### Scan options
 
-Restrict to one era band (`gpt4`, `gpt4o`, `gpt5`, `grok`, or `generic`):
+Restrict to one era band (`gpt4`, `gpt4o`, `gpt5`, or `generic`):
 
 ```bash
 python3 assets/ai_detector.py articles.txt --era gpt4o -o report.csv

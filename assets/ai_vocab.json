@@ -6,11 +6,13 @@
         "Additionally",
         "boasts",
         "bolstered",
+        "bustling",
         "crucial",
         "delve",
         "emphasizing",
         "enduring",
         "garner",
+        "harmonious",
         "intricate",
         "intricacies",
         "interplay",
@@ -26,7 +28,15 @@
       ],
       "phrases": [
         "crucial role",
-        "not widely documented"
+        "holistic approach",
+        "not widely documented",
+        "important to note",
+        "not just about",
+        "not only about",
+        "aligns with",
+        "digital landscape",
+        "seamless integration",
+        "world of"
       ],
       "section_headers": [
         "Challenges and Future Directions"
@@ -69,7 +79,6 @@
         "showcasing"
       ],
       "phrases": [
-        "not widely documented",
         "widely documented",
         "media coverage",
         "notability"
@@ -77,18 +86,6 @@
       "section_headers": [
         "Challenges and Future Directions"
       ],
-      "sentence_initial": []
-    },
-    "grok": {
-      "label": "Grok output",
-      "vocab": [
-        "causal",
-        "empirical",
-        "correlate",
-        "underscore"
-      ],
-      "phrases": [],
-      "section_headers": [],
       "sentence_initial": []
     },
     "generic": {
@@ -377,26 +374,5 @@
     "sentence_initial": 2.0,
     "punctuation": 1.0,
     "cooccurrence_bonus": 0.5
-  },
-  "caution_keywords": {
-    "tech": [
-      "software",
-      "video game",
-      "mobile app",
-      "computer program",
-      "operating system",
-      "smartphone"
-    ],
-    "sociology": [
-      "sociology",
-      "social movement",
-      "demographics",
-      "ethnography",
-      "anthropology"
-    ]
-  },
-  "caution_messages": {
-    "tech": "Article may be about technology; phrases like 'key features' are more expected.",
-    "sociology": "Article may be about sociology; phrasing like 'highlighting' and 'emphasizing' is slightly more common."
   }
 }

@@ -18,6 +18,7 @@ from ai_detector import (
 from search_triage import (
     TRIAGE_COLUMNS,
     build_query,
+    build_vocab_query,
     eligible_narrowers,
     enrich_result,
     format_triage_csv,
@@ -45,6 +46,10 @@ class TestQueryBuilder(unittest.TestCase):
         q = build_query('"crucial role"', ["underscore"])
         self.assertEqual(q, '"crucial role" underscore')
 
+    def test_build_vocab_query(self):
+        q = build_vocab_query(["delve", "underscore", "pivotal"])
+        self.assertEqual(q, "delve underscore pivotal")
+
     def test_parse_query_terms(self):
         terms = parse_query_terms('"crucial role" emphasize underscore')
         self.assertIn("crucial role", terms)
@@ -70,7 +75,7 @@ class TestQueryBuilder(unittest.TestCase):
             query=None, phrase="crucial role",
             narrow=["underscore"], era=None, seed=1,
         )
-        self.assertIn(era, ("gpt4", "gpt4o", "gpt5", "grok"))
+        self.assertIn(era, ("gpt4", "gpt4o", "gpt5"))
         self.assertEqual(query, '"crucial role" underscore')
 
     def test_resolve_freeform_requires_era(self):
@@ -84,32 +89,59 @@ class TestQueryBuilder(unittest.TestCase):
         narrowers = eligible_narrowers("crucial role", ["crucial", "underscore", "emphasizing"])
         self.assertEqual(narrowers, ["underscore", "emphasizing"])
 
-    def test_pick_random_search_skips_grok(self):
-        for _ in range(20):
-            _, era, _, narrow = pick_random_search(self.vocab, seed=None)
-            self.assertNotEqual(era, "grok")
-            self.assertEqual(len(narrow), 2)
+    def test_pick_random_search_phrase_mode(self):
+        query, era, phrase, terms = pick_random_search(self.vocab, seed=0)
+        self.assertIn(era, ("gpt4", "gpt4o", "gpt5"))
+        self.assertIsNotNone(phrase)
+        self.assertEqual(len(terms), 2)
+        self.assertTrue(query.startswith('"'))
+
+    def test_pick_random_search_vocab_mode(self):
+        query, era, phrase, terms = pick_random_search(self.vocab, seed=2)
+        self.assertIn(era, ("gpt4", "gpt4o", "gpt5"))
+        self.assertIsNone(phrase)
+        self.assertEqual(len(terms), 3)
+        self.assertNotIn('"', query)
+        self.assertEqual(query, build_vocab_query(terms))
 
     def test_pick_random_search_reproducible(self):
         a = pick_random_search(self.vocab, seed=42)
         b = pick_random_search(self.vocab, seed=42)
         self.assertEqual(a, b)
 
-    def test_resolve_random(self):
+    def test_resolve_random_phrase_mode(self):
         query, era = resolve_search_params(
             query=None, phrase=None,
-            narrow=[], era=None, seed=42,
-            random_mode=True, vocab_data=self.vocab,
+            narrow=[], era=None, seed=0,
+            vocab_data=self.vocab,
         )
         self.assertIn(era, ("gpt4", "gpt4o", "gpt5"))
         self.assertTrue(query.startswith('"'))
 
-    def test_resolve_random_rejects_conflicts(self):
+    def test_resolve_random_vocab_mode(self):
+        query, era = resolve_search_params(
+            query=None, phrase=None,
+            narrow=[], era=None, seed=2,
+            vocab_data=self.vocab,
+        )
+        self.assertIn(era, ("gpt4", "gpt4o", "gpt5"))
+        self.assertNotIn('"', query)
+        self.assertEqual(len(query.split()), 3)
+
+    def test_resolve_random_rejects_era_without_phrase(self):
         with self.assertRaises(ValueError):
             resolve_search_params(
-                query=None, phrase="crucial role",
-                narrow=[], era=None, seed=None,
-                random_mode=True, vocab_data=self.vocab,
+                query=None, phrase=None,
+                narrow=[], era="gpt4o", seed=None,
+                vocab_data=self.vocab,
+            )
+
+    def test_resolve_random_rejects_narrow_without_phrase(self):
+        with self.assertRaises(ValueError):
+            resolve_search_params(
+                query=None, phrase=None,
+                narrow=["underscore"], era=None, seed=None,
+                vocab_data=self.vocab,
             )
 
 
@@ -228,7 +260,7 @@ class TestCsvOutput(unittest.TestCase):
             "ai_tagged": "no",
         }])
         self.assertTrue(csv_text.startswith("title,"))
-        self.assertEqual(len(TRIAGE_COLUMNS), 14)
+        self.assertEqual(len(TRIAGE_COLUMNS), 12)
 
     def test_triage_csv_sorted_by_prioritize(self):
         csv_text = format_triage_csv([
