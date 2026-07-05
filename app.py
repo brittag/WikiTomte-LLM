@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import base64
 import html
 import sys
 from collections import OrderedDict
@@ -24,18 +25,23 @@ DEFAULT_MIN_SCORE = 0.4
 TABLE_MAX_HEIGHT = 600
 
 # LinkColumn display_text only supports static text or a URL regex — not another
-# column. Encode the title in the URL fragment and extract it for display.
-ARTICLE_LINK_DISPLAY = r".*#(.*)$"
+# column. Extract the article name from the Wikipedia /wiki/ path for display.
+ARTICLE_LINK_DISPLAY = r".*/wiki/([^#?&]+)"
+TOMTE_IMAGE = Path(__file__).resolve().parent / "docs" / "jenny-nystrom-tomte.png"
 
 
 def _article_link(url: str, title: str) -> str:
-    if not url:
-        return title
-    return f"{url}#{title}"
+    return url or title
 
 
 def _table_height(row_count: int) -> int:
     return min(35 * max(row_count, 1) + 38, TABLE_MAX_HEIGHT)
+
+
+@st.cache_data
+def _tomte_img_src() -> str:
+    data = base64.b64encode(TOMTE_IMAGE.read_bytes()).decode()
+    return f"data:image/png;base64,{data}"
 
 
 def _group_triage_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -84,6 +90,12 @@ TRIAGE_LIST_CSS = """
 
 def _html_escape(value: Any) -> str:
     return html.escape(str(value or ""), quote=True)
+
+
+def _score_pct(value: Any) -> str:
+    if value is None or value == "":
+        return ""
+    return f"{round(float(value) * 100)}%"
 
 
 def _format_triage_item_html(row: dict[str, Any], bucket: str) -> str:
@@ -205,11 +217,8 @@ def _scan_report_to_display_dataframe(report: dict[str, Any]) -> pd.DataFrame:
     for article in articles:
         base = {
             "article": _article_link(article["url"], article["title"]),
-            "flagged": bool(article.get("flagged")),
-            "score": round(float(article.get("suspicion_score", 0)), 3),
-            "matches": article.get("match_count", 0),
+            "article score": _score_pct(article.get("suspicion_score", 0)),
             "ai tagged": "yes" if article.get("ai_tagged") else "no",
-            "cautions": "; ".join(article.get("cautions", [])),
         }
         passages = article.get("passages") or []
         if passages:
@@ -221,7 +230,7 @@ def _scan_report_to_display_dataframe(report: dict[str, Any]) -> pd.DataFrame:
                     {
                         **base,
                         "section": passage.get("section", ""),
-                        "passage score": round(float(passage.get("score", 0)), 3),
+                        "passage score": _score_pct(passage.get("score", 0)),
                         "passage": passage.get("text", ""),
                         "indicators": indicators,
                         "error": "",
@@ -232,7 +241,7 @@ def _scan_report_to_display_dataframe(report: dict[str, Any]) -> pd.DataFrame:
                 {
                     **base,
                     "section": "",
-                    "passage score": None,
+                    "passage score": "",
                     "passage": "",
                     "indicators": "",
                     "error": "",
@@ -243,13 +252,10 @@ def _scan_report_to_display_dataframe(report: dict[str, Any]) -> pd.DataFrame:
         rows.append(
             {
                 "article": err["title"],
-                "flagged": False,
-                "score": None,
-                "matches": None,
+                "article score": "",
                 "ai tagged": "",
-                "cautions": "",
                 "section": "",
-                "passage score": None,
+                "passage score": "",
                 "passage": "",
                 "indicators": "",
                 "error": err.get("error", ""),
@@ -262,37 +268,33 @@ def _scan_report_to_display_dataframe(report: dict[str, Any]) -> pd.DataFrame:
 def _render_scan_table(df: pd.DataFrame) -> None:
     st.dataframe(
         df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         height=_table_height(len(df)),
         column_order=[
             "article",
-            "flagged",
-            "score",
-            "matches",
+            "article score",
             "section",
             "passage score",
             "passage",
             "indicators",
             "ai tagged",
-            "cautions",
             "error",
         ],
         column_config={
             "article": st.column_config.LinkColumn(
                 "Article", display_text=ARTICLE_LINK_DISPLAY
             ),
-            "flagged": st.column_config.CheckboxColumn("Flagged", width="small"),
-            "score": st.column_config.NumberColumn("Score", format="%.3f", width="small"),
-            "matches": st.column_config.NumberColumn("Matches", format="%d", width="small"),
+            "article score": st.column_config.TextColumn(
+                "Article score", width="small"
+            ),
             "section": st.column_config.TextColumn("Section", width="small"),
-            "passage score": st.column_config.NumberColumn(
-                "Passage score", format="%.3f", width="small"
+            "passage score": st.column_config.TextColumn(
+                "Passage score", width="small"
             ),
             "passage": st.column_config.TextColumn("Passage", width="large"),
             "indicators": st.column_config.TextColumn("Indicators", width="medium"),
             "ai tagged": st.column_config.TextColumn("AI tagged", width="small"),
-            "cautions": st.column_config.TextColumn("Cautions", width="medium"),
             "error": st.column_config.TextColumn("Error", width="medium"),
         },
     )
@@ -329,10 +331,42 @@ See the [Wikimedia User-Agent policy](https://foundation.wikimedia.org/wiki/Poli
 
 def main() -> None:
     st.set_page_config(page_title="WikiTomte-LLM", layout="wide")
+    st.markdown(
+        f"""
+<style>
+.block-container {{
+    padding-top: 1rem;
+    position: relative;
+}}
+.wikitomte-tomte {{
+    position: absolute;
+    top: 0.75rem;
+    right: 0;
+    width: 200px;
+    height: auto;
+    pointer-events: none;
+}}
+h1#wiki-tomte-llm {{
+    font-size: 2rem;
+}}
+[data-testid="stCaptionContainer"], [data-testid="stMarkdown"] {{
+    background-color: white;
+    width: fit-content;
+    opacity: .9;
+hr {{
+    margin: 0.5rem 0;
+}}
+div[data-testid="stHeading"] h2 {{
+    margin-top: 0.5rem;
+}}
+</style>
+<img class="wikitomte-tomte" src="{_tomte_img_src()}" alt="">
+        """,
+        unsafe_allow_html=True,
+    )
     st.title("WikiTomte-LLM")
     st.caption(
-        "Find candidate Wikipedia articles with potential LLM-generated text, "
-        "then scan for suspicious passages."
+        "Help with [WikiProject AI Cleanup](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Cleanup) by finding Wikipedia articles with potential LLM-generated text, then scanning for suspicious passages."
     )
 
     try:

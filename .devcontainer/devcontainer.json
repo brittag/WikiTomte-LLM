@@ -2,7 +2,7 @@
   "name": "WikiTomte-LLM",
   "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
   "postCreateCommand": "pip install -r requirements.txt",
-  "postStartCommand": "streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true",
+  "postStartCommand": "streamlit run app.py",
   "forwardPorts": [8501],
   "portsAttributes": {
     "8501": {
