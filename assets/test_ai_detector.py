@@ -4,12 +4,15 @@
 import json
 import sys
 import unittest
+import csv
+import io
 from pathlib import Path
 
 # Allow importing from assets/
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ai_detector import (
+    AI_GENERATED_CAUTION,
     Section,
     _articles_for_csv,
     cluster_passages,
@@ -17,7 +20,12 @@ from ai_detector import (
     detect_cautions,
     find_matches,
     format_report_csv,
+    has_ai_generated_template,
+    is_ai_generated_template_name,
     load_vocab,
+    page_has_ai_generated_category,
+    page_is_ai_tagged,
+    prepare_article,
     read_article_list,
     resolve_eras,
     wikitext_to_sections,
@@ -90,6 +98,69 @@ class TestVocabConfig(unittest.TestCase):
             self.assertIn(expected, phrases)
         for expected in ("delve", "tapestry", "quintessential", "synergy"):
             self.assertIn(expected, vocab)
+
+
+class TestAiGeneratedTemplate(unittest.TestCase):
+    def test_is_ai_generated_template_name(self):
+        self.assertTrue(is_ai_generated_template_name("AI-generated"))
+        self.assertTrue(is_ai_generated_template_name("Template:AI-generated"))
+        self.assertTrue(is_ai_generated_template_name("subst:AI-generated"))
+        self.assertTrue(is_ai_generated_template_name("ai_generated"))
+        self.assertFalse(is_ai_generated_template_name("Infobox person"))
+
+    def test_has_ai_generated_template_date_only(self):
+        self.assertTrue(has_ai_generated_template("{{AI-generated|date=October 2025}}"))
+
+    def test_page_has_ai_generated_category_feudalism(self):
+        cat = "Articles containing suspected AI-generated texts from October 2025"
+        self.assertTrue(page_has_ai_generated_category([cat]))
+        self.assertTrue(page_has_ai_generated_category([f"Category:{cat}"]))
+
+    def test_page_is_ai_tagged_from_category_only(self):
+        cat = "Articles containing suspected AI-generated texts from October 2025"
+        self.assertTrue(page_is_ai_tagged([], [cat]))
+
+    def test_page_is_ai_tagged_from_template_api_title(self):
+        self.assertTrue(page_is_ai_tagged(["Template:AI-generated"], []))
+
+    def test_has_ai_generated_template_with_reason(self):
+        wikitext = (
+            "Some article text.\n"
+            "{{AI-generated|date=January 2025|reason=LLM content}}\n"
+            "More text."
+        )
+        self.assertTrue(has_ai_generated_template(wikitext))
+
+    def test_has_ai_generated_template_subst_prefix(self):
+        self.assertTrue(has_ai_generated_template("{{subst:AI-generated|date=January 2025}}"))
+
+    def test_has_ai_generated_template_bare(self):
+        self.assertTrue(has_ai_generated_template("{{AI-generated}}"))
+
+    def test_has_ai_generated_template_absent(self):
+        self.assertFalse(has_ai_generated_template(SAMPLE_WIKITEXT))
+
+    def test_prepare_article_flags_ai_tagged(self):
+        vocab = load_vocab()
+        page = {
+            "pageid": 99,
+            "title": "Tagged Article",
+            "canonicalurl": "https://en.wikipedia.org/wiki/Tagged_Article",
+            "revisions": [{
+                "slots": {
+                    "main": {
+                        "content": (
+                            "Lead text.\n"
+                            "{{AI-generated|date=January 2025|reason=test}}\n"
+                        ),
+                    },
+                },
+            }],
+            "categories": [],
+        }
+        prepared = prepare_article(page, "Tagged Article", vocab)
+        self.assertTrue(prepared.ai_tagged)
+        self.assertIn(AI_GENERATED_CAUTION, prepared.cautions)
 
 
 class TestWikitextParsing(unittest.TestCase):
@@ -304,6 +375,52 @@ class TestCsvOutput(unittest.TestCase):
         self.assertGreater(len(lines), 1)
         self.assertIn("Test Subject", csv_text)
         self.assertIn("crucial role", csv_text)
+
+    def test_report_csv_sorted_by_suspicion_score(self):
+        report = {
+            "eras": ["gpt4"],
+            "articles": [
+                {
+                    "title": "Low Score",
+                    "pageid": 1,
+                    "url": "https://en.wikipedia.org/wiki/Low",
+                    "era": "gpt4",
+                    "flagged": False,
+                    "suspicion_score": 0.1,
+                    "match_count": 1,
+                    "text_length": 1000,
+                    "passages": [{
+                        "section": "Lead",
+                        "text": "low",
+                        "score": 0.1,
+                        "matches": [],
+                    }],
+                    "cautions": [],
+                },
+                {
+                    "title": "High Score",
+                    "pageid": 2,
+                    "url": "https://en.wikipedia.org/wiki/High",
+                    "era": "gpt4",
+                    "flagged": True,
+                    "suspicion_score": 0.9,
+                    "match_count": 5,
+                    "text_length": 1000,
+                    "passages": [{
+                        "section": "Lead",
+                        "text": "high",
+                        "score": 0.9,
+                        "matches": [],
+                    }],
+                    "cautions": [],
+                },
+            ],
+            "errors": [],
+        }
+        rows = list(csv.DictReader(io.StringIO(format_report_csv(report))))
+        titles = [r["title"] for r in rows if r["error"] == ""]
+        self.assertEqual(titles[0], "High Score")
+        self.assertEqual(titles[-1], "Low Score")
 
 
 class TestMultiEraCsv(unittest.TestCase):

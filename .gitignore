@@ -1,2 +1,5 @@
 .DS_Store
+config.json
 examples/smoke-report.json
+candidates.txt
+triage.csv

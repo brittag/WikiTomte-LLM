@@ -44,12 +44,9 @@ except ImportError:
     print("requests not installed. Install: pip install requests", file=sys.stderr)
     sys.exit(1)
 
-log = logging.getLogger("ai_detector")
+from config import get_user_agent
 
-DEFAULT_USER_AGENT = (
-    "AICleanupBot/0.1 (Britta Gustafson, brittag@gmail.com) "
-    "AICleanup/0.1"
-)
+log = logging.getLogger("ai_detector")
 
 VOCAB_PATH = Path(__file__).resolve().parent / "ai_vocab.json"
 WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
@@ -140,6 +137,79 @@ def read_article_list(path: Path) -> List[str]:
                 continue
             titles.append(line)
     return titles
+
+
+AI_GENERATED_TEMPLATE = "ai-generated"
+AI_GENERATED_CAUTION = "Already tagged with {{AI-generated}}"
+_TEMPLATE_NAME_PREFIXES = ("template:", "subst:", "safesubst:")
+# Matches {{AI-generated}}, {{AI-generated|date=...}}, {{AI-generated|date=...|reason=...}},
+# and prefixed forms like {{subst:AI-generated|date=...}}.
+_AI_GENERATED_WIKITEXT_RE = re.compile(
+    r"\{\{\s*(?:(?:subst|safesubst|template)\s*:\s*)?AI[_-]generated\b",
+    re.IGNORECASE,
+)
+
+
+def normalize_template_name(name: str) -> str:
+    cleaned = str(name).strip().lower().replace("_", "-")
+    for prefix in _TEMPLATE_NAME_PREFIXES:
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    return cleaned.strip()
+
+
+def is_ai_generated_template_name(name: str) -> bool:
+    return normalize_template_name(name) == AI_GENERATED_TEMPLATE
+
+
+def has_ai_generated_template(wikitext: str) -> bool:
+    """Return True if wikitext contains {{AI-generated|...}} in any common form."""
+    if _AI_GENERATED_WIKITEXT_RE.search(wikitext):
+        return True
+    parsed = mwparserfromhell.parse(wikitext)
+    for template in parsed.filter_templates():
+        if is_ai_generated_template_name(str(template.name)):
+            return True
+    return False
+
+
+def page_has_ai_generated_template(templates: List[str]) -> bool:
+    """Return True if prop=templates names include AI-generated."""
+    return any(is_ai_generated_template_name(name) for name in templates)
+
+
+def is_ai_generated_category(name: str) -> bool:
+    """Match maintenance categories added by {{AI-generated|date=...}}."""
+    cleaned = str(name).strip().lower()
+    if cleaned.startswith("category:"):
+        cleaned = cleaned[len("category:"):]
+    return "suspected ai-generated" in cleaned
+
+
+def page_has_ai_generated_category(categories: List[str]) -> bool:
+    return any(is_ai_generated_category(name) for name in categories)
+
+
+def page_is_ai_tagged(
+    templates: List[str],
+    categories: Optional[List[str]] = None,
+) -> bool:
+    """True if page uses {{AI-generated}} or has its maintenance category."""
+    if page_has_ai_generated_template(templates):
+        return True
+    if categories and page_has_ai_generated_category(categories):
+        return True
+    return False
+
+
+def normalize_pageid(pageid: Any) -> Optional[int]:
+    if pageid is None:
+        return None
+    try:
+        return int(pageid)
+    except (TypeError, ValueError):
+        return None
 
 
 def fetch_page_data(client: WikimediaClient, title: str) -> Dict[str, Any]:
@@ -429,6 +499,7 @@ class PreparedArticle:
     full_text: str
     sections: List[Section]
     cautions: List[str]
+    ai_tagged: bool = False
 
 
 def prepare_article(page: Dict[str, Any], title: str, vocab_data: Dict[str, Any]) -> PreparedArticle:
@@ -445,13 +516,19 @@ def prepare_article(page: Dict[str, Any], title: str, vocab_data: Dict[str, Any]
     if not wikitext:
         raise ValueError(f"Empty wikitext for: {title}")
 
+    ai_tagged = has_ai_generated_template(wikitext)
+
     categories = [
         c.get("title", "").replace("Category:", "")
         for c in page.get("categories", [])
     ]
+    if not ai_tagged:
+        ai_tagged = page_has_ai_generated_category(categories)
 
     full_text, sections = wikitext_to_sections(wikitext)
     cautions = detect_cautions(title, categories, vocab_data)
+    if ai_tagged and AI_GENERATED_CAUTION not in cautions:
+        cautions.append(AI_GENERATED_CAUTION)
 
     return PreparedArticle(
         title=page.get("title", title),
@@ -460,6 +537,7 @@ def prepare_article(page: Dict[str, Any], title: str, vocab_data: Dict[str, Any]
         full_text=full_text,
         sections=sections,
         cautions=cautions,
+        ai_tagged=ai_tagged,
     )
 
 
@@ -483,6 +561,7 @@ def scan_prepared_article(
         "url": prepared.url,
         "era": era,
         "era_label": era_config.get("label", era),
+        "ai_tagged": prepared.ai_tagged,
         "flagged": suspicion_score >= min_score and len(matches) >= 2,
         "suspicion_score": suspicion_score,
         "match_count": len(matches),
@@ -533,6 +612,7 @@ CSV_COLUMNS = [
     "pageid",
     "url",
     "era",
+    "ai_tagged",
     "flagged",
     "suspicion_score",
     "match_count",
@@ -574,6 +654,15 @@ def _articles_for_csv(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return rows
 
 
+def _sort_report_articles(articles: List[Dict[str, Any]]) -> None:
+    """Sort articles by suspicion_score descending; passages by passage score within each."""
+    articles.sort(key=lambda a: a.get("suspicion_score", 0), reverse=True)
+    for article in articles:
+        passages = article.get("passages")
+        if passages:
+            passages.sort(key=lambda p: p.get("score", 0), reverse=True)
+
+
 def _write_article_csv_rows(
     writer: csv.DictWriter,
     article: Dict[str, Any],
@@ -583,6 +672,7 @@ def _write_article_csv_rows(
         "pageid": article["pageid"],
         "url": article["url"],
         "era": article["era"],
+        "ai_tagged": "yes" if article.get("ai_tagged") else "no",
         "flagged": article["flagged"],
         "suspicion_score": article["suspicion_score"],
         "match_count": article["match_count"],
@@ -619,7 +709,9 @@ def format_report_csv(report: Dict[str, Any]) -> str:
     writer = csv.DictWriter(buf, fieldnames=CSV_COLUMNS, extrasaction="ignore")
     writer.writeheader()
 
-    for article in _articles_for_csv(report.get("articles", [])):
+    articles = _articles_for_csv(report.get("articles", []))
+    _sort_report_articles(articles)
+    for article in articles:
         _write_article_csv_rows(writer, article)
 
     eras_label = ",".join(report.get("eras", [])) or report.get("era", "")
@@ -629,6 +721,7 @@ def format_report_csv(report: Dict[str, Any]) -> str:
             "pageid": "",
             "url": "",
             "era": eras_label,
+            "ai_tagged": "",
             "flagged": "",
             "suspicion_score": "",
             "match_count": "",
@@ -694,6 +787,7 @@ def run_batch(
 
     flagged = sum(1 for a in articles if a.get("flagged"))
     flagged_titles = {a["title"] for a in articles if a.get("flagged")}
+    tagged_titles = {a["title"] for a in articles if a.get("ai_tagged")}
     report = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "input_file": str(input_path),
@@ -706,6 +800,7 @@ def run_batch(
             "results": len(articles),
             "flagged": flagged,
             "articles_flagged": len(flagged_titles),
+            "already_tagged": len(tagged_titles),
             "errors": len(errors),
         },
         "articles": articles,
@@ -761,11 +856,6 @@ Eras (default: all): gpt4, gpt4o, gpt5, grok, generic
         help="Seconds between API requests (default: 0.5)",
     )
     parser.add_argument(
-        "--user-agent",
-        default=os.environ.get("WIKIMEDIA_USER_AGENT", DEFAULT_USER_AGENT),
-        help="User-Agent header for Wikimedia API requests",
-    )
-    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable debug logging",
@@ -797,7 +887,7 @@ def main() -> None:
             input_path=input_path,
             output_path=output_path,
             min_score=args.min_score,
-            user_agent=args.user_agent,
+            user_agent=get_user_agent(),
             delay=args.delay,
             as_json=args.json,
             era=args.era,

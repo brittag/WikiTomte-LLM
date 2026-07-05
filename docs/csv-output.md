@@ -20,6 +20,7 @@ Articles with multiple suspicious passages appear on **multiple rows**. When all
 | `pageid` | Wikipedia page ID (stable numeric identifier) |
 | `url` | Canonical URL to the article |
 | `era` | LLM era band for this row (`gpt4`, `gpt4o`, `gpt5`, `grok`, `generic`, or `all` when no era had matches). By default each article is scanned against all eras; use `--era` to restrict to one |
+| `ai_tagged` | `yes` if the article wikitext contains `{{AI-generated}}` or `{{AI-generated|date=...}}`, or has the template's maintenance category; `no` otherwise. Informational — scanning still runs |
 | `flagged` | `True` if the article met the flag threshold: `suspicion_score` ≥ `--min-score` (default 0.4) **and** at least 2 indicator matches. `False` otherwise. This is a triage hint, not proof of LLM authorship |
 | `suspicion_score` | Article-level score from 0.0 to 1.0, based on weighted indicator matches normalized by article length. Higher values mean more/coarser pattern hits |
 | `match_count` | Total number of indicator matches found anywhere in the article (across all passages) |
