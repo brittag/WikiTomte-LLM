@@ -4,8 +4,8 @@ This tool is an experiment in auto-identifying potential undetected LLM-generate
 
 What you can do with this tool:
 
-1. **Create a candidate article list.** Run a command to create a list of articles with potential LLM-generated text by searching all articles for random combinations of AI vocabulary. You get a CSV of search results and a plain-text list of article names. You can import CSVs into Google Sheets or another spreadsheet application to sort, filter, and make decisions.
-2. **Scan articles to find suspicious passages.** Run another command to scan each article on the list for significant LLM vocabulary overall and particularly suspicious passages. You get a CSV with all of the data for review.
+1. **Search to create a candidate article list.** Run a command to create a list of articles with potential LLM-generated text by searching all articles for random combinations of AI vocabulary. You get a CSV of search results and a plain-text list of article names. You can import CSVs into Google Sheets or another spreadsheet application to sort, filter, and make decisions.
+2. **Scan candidate articles to find suspicious passages.** Run another command to scan each article on the list for significant LLM vocabulary overall and particularly suspicious passages. You get a CSV with all of the data for review.
 
 (You can skip directly to scanning if you want to provide your own list of articles to scan, such as a list you made using [Petscan](https://meta.wikimedia.org/wiki/PetScan/en).)
 
@@ -15,13 +15,13 @@ This method tends to find articles with promotional content in general, includin
 
 This tool was vibecoded by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade), with [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) made by [User:Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)). It is called WikiTomte-LLM because a [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always.
 
-Triage:
+Search:
 
-[!Screenshot of triage](docs/search-triage-screenshot.png)
+![Screenshot of triage](docs/search-triage-screenshot.png)
 
-Output:
+Scan:
 
-[!Screenshot of output](docs/scan-screenshot.png)
+![Screenshot of output](docs/scan-screenshot.png)
 
 ## Setup
 
