@@ -315,6 +315,23 @@ def find_matches(
                     section=sec.name,
                 ))
 
+    for pattern_spec in era_config.get("patterns", []):
+        indicator = pattern_spec.get("indicator", "pattern")
+        regex = pattern_spec.get("regex", "")
+        if not regex:
+            continue
+        weight_key = pattern_spec.get("weight_key", "punctuation")
+        weight = weights.get(weight_key, weights.get("punctuation", 1.0))
+        pattern = re.compile(regex)
+        for m in pattern.finditer(full_text):
+            matches.append(Match(
+                indicator=indicator,
+                match_type="punctuation",
+                offset=m.start(),
+                weight=weight,
+                section=section_for_offset(m.start()),
+            ))
+
     matches.sort(key=lambda m: m.offset)
     return matches
 

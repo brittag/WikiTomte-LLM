@@ -28,7 +28,7 @@ Articles with multiple suspicious passages appear on **multiple rows**. When all
 | `passage_score` | Passage-level score from 0.0 to 1.0, based on the weight and density of matches within this clustered passage. Empty on article-only and error rows |
 | `passage_text` | Excerpt of article prose surrounding the matched indicators (~200 characters of context on each side). This is the primary column to review manually |
 | `indicators` | Semicolon-separated list of matched words/phrases in this passage (e.g. `crucial role; underscore; highlighting`) |
-| `indicator_types` | Semicolon-separated match types, parallel to `indicators`. Possible values: `phrase` (multi-word target phrase), `vocab` (single era vocabulary word), `sentence_initial` (e.g. `Additionally,` at sentence start), `section_header` (suspicious section title) |
+| `indicator_types` | Semicolon-separated match types, parallel to `indicators`. Possible values: `phrase` (multi-word target phrase), `vocab` (single era vocabulary word), `sentence_initial` (e.g. `Additionally,` at sentence start), `section_header` (suspicious section title), `punctuation` (e.g. em dash `—`) |
 | `cautions` | Semicolon-separated notes about possible false-positive contexts (e.g. technology or sociology articles where some phrasing is more expected). Informational only — matches are not suppressed |
 | `error` | Error message if the article failed to scan. Empty on successful rows |
 

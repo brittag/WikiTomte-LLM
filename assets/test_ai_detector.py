@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ai_detector import (
+    Section,
     _articles_for_csv,
     cluster_passages,
     compute_suspicion_score,
@@ -59,7 +60,7 @@ class TestVocabConfig(unittest.TestCase):
 
     def test_weights_present(self):
         vocab = load_vocab()
-        for key in ("phrase", "vocab", "section_header", "sentence_initial"):
+        for key in ("phrase", "vocab", "section_header", "sentence_initial", "punctuation"):
             self.assertIn(key, vocab["weights"])
 
     def test_resolve_eras_default_all(self):
@@ -76,14 +77,19 @@ class TestVocabConfig(unittest.TestCase):
         vocab = load_vocab()
         generic = vocab["eras"]["generic"]
         phrases = set(generic["phrases"])
+        vocab = set(generic["vocab"])
         for expected in (
             "serves as",
             "independent coverage",
             "valuable insights",
             "in the heart of",
+            "at the heart of",
+            "in essence",
             "despite these challenges",
         ):
             self.assertIn(expected, phrases)
+        for expected in ("delve", "tapestry", "quintessential", "synergy"):
+            self.assertIn(expected, vocab)
 
 
 class TestWikitextParsing(unittest.TestCase):
@@ -125,6 +131,29 @@ class TestMatching(unittest.TestCase):
         matches = find_matches(SAMPLE_PROSE, self.sections, self.era, self.weights)
         initial = [m for m in matches if m.match_type == "sentence_initial"]
         self.assertTrue(any("Additionally" in m.indicator for m in initial))
+
+
+class TestPunctuation(unittest.TestCase):
+    def setUp(self):
+        self.vocab = load_vocab()
+        self.era = self.vocab["eras"]["generic"]
+        self.weights = self.vocab["weights"]
+        self.prose = (
+            "The project—launched in 2024—played a crucial role in shaping policy. "
+            "Another clause—with more detail—followed."
+        )
+        self.sections = [Section(name="Lead", level=2, start=0, text=self.prose)]
+
+    def test_finds_em_dash_in_generic_era(self):
+        matches = find_matches(self.prose, self.sections, self.era, self.weights)
+        em_dashes = [m for m in matches if m.match_type == "punctuation"]
+        self.assertEqual(len(em_dashes), 4)
+        self.assertTrue(all(m.indicator == "em dash" for m in em_dashes))
+
+    def test_em_dash_not_in_gpt4_era(self):
+        era = self.vocab["eras"]["gpt4"]
+        matches = find_matches(self.prose, self.sections, era, self.weights)
+        self.assertEqual([m for m in matches if m.match_type == "punctuation"], [])
 
 
 class TestScoring(unittest.TestCase):
