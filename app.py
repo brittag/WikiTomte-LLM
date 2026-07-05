@@ -22,6 +22,7 @@ from search_triage import format_triage_csv, run_triage, titles_for_scan
 DEFAULT_LIMIT = 50
 DEFAULT_DELAY = 0.5
 DEFAULT_MIN_SCORE = 0.4
+DISPLAY_MIN_PASSAGE_SCORE = 0.3
 TABLE_MAX_HEIGHT = 600
 
 # LinkColumn display_text only supports static text or a URL regex — not another
@@ -209,41 +210,33 @@ def _scan_report_to_display_dataframe(report: dict[str, Any]) -> pd.DataFrame:
             article.get("title", "").lower(),
         )
     )
-    for article in articles:
-        passages = article.get("passages") or []
-        passages.sort(key=lambda passage: passage.get("score", 0), reverse=True)
-
     rows: list[dict[str, Any]] = []
     for article in articles:
+        passages = [
+            passage
+            for passage in (article.get("passages") or [])
+            if passage.get("score", 0) >= DISPLAY_MIN_PASSAGE_SCORE
+        ]
+        passages.sort(key=lambda passage: passage.get("score", 0), reverse=True)
+        if not passages:
+            continue
+
         base = {
             "article": _article_link(article["url"], article["title"]),
             "article score": _score_pct(article.get("suspicion_score", 0)),
             "ai tagged": "yes" if article.get("ai_tagged") else "no",
         }
-        passages = article.get("passages") or []
-        if passages:
-            for passage in passages:
-                indicators = "; ".join(
-                    match["indicator"] for match in passage.get("matches", [])
-                )
-                rows.append(
-                    {
-                        **base,
-                        "section": passage.get("section", ""),
-                        "passage score": _score_pct(passage.get("score", 0)),
-                        "passage": passage.get("text", ""),
-                        "indicators": indicators,
-                        "error": "",
-                    }
-                )
-        else:
+        for passage in passages:
+            indicators = "; ".join(
+                match["indicator"] for match in passage.get("matches", [])
+            )
             rows.append(
                 {
                     **base,
-                    "section": "",
-                    "passage score": "",
-                    "passage": "",
-                    "indicators": "",
+                    "section": passage.get("section", ""),
+                    "passage score": _score_pct(passage.get("score", 0)),
+                    "passage": passage.get("text", ""),
+                    "indicators": indicators,
                     "error": "",
                 }
             )
@@ -283,18 +276,19 @@ def _render_scan_table(df: pd.DataFrame) -> None:
         ],
         column_config={
             "article": st.column_config.LinkColumn(
-                "Article", display_text=ARTICLE_LINK_DISPLAY
+                "Article", display_text=ARTICLE_LINK_DISPLAY,
+                width="medium"
             ),
             "article score": st.column_config.TextColumn(
-                "Article score", width="small"
+                "Article %", width="small"
             ),
             "section": st.column_config.TextColumn("Section", width="small"),
             "passage score": st.column_config.TextColumn(
-                "Passage score", width="small"
+                "Passage %", width="small"
             ),
             "passage": st.column_config.TextColumn("Passage", width="large"),
             "indicators": st.column_config.TextColumn("Indicators", width="medium"),
-            "ai tagged": st.column_config.TextColumn("AI tagged", width="small"),
+            "ai tagged": st.column_config.TextColumn("Already tagged for AI cleanup", width="medium"),
             "error": st.column_config.TextColumn("Error", width="medium"),
         },
     )
@@ -447,6 +441,10 @@ div[data-testid="stExpander"] {{
                 file_name="triage.csv",
                 mime="text/csv",
             )
+        
+        st.caption(
+            "See [search output docs](https://github.com/brittag/WikiTomte-LLM/blob/main/docs/search-triage.md) for CSV column meanings."
+        )
 
         candidate_count = len(titles_for_scan(rows))
         st.info(
@@ -495,7 +493,6 @@ div[data-testid="stExpander"] {{
         summary = report.get("summary", {})
         st.success(
             f"Scanned **{summary.get('scanned', 0)}** of **{summary.get('total', 0)}** articles — "
-            f"**{summary.get('articles_flagged', 0)}** flagged, "
             f"**{summary.get('errors', 0)}** errors"
         )
 
@@ -510,8 +507,7 @@ div[data-testid="stExpander"] {{
             )
 
         st.caption(
-            "See [docs/csv-output.md](docs/csv-output.md) for column meanings. "
-            "Review the **Passage** column before taking action on articles."
+            "See [scan output docs](https://github.com/brittag/WikiTomte-LLM/blob/main/docs/csv-output.md) for CSV column meanings."
         )
 
     st.header("Tips and notes")
