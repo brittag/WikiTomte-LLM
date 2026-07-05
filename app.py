@@ -174,7 +174,7 @@ def _render_triage_results(rows: list[dict[str, Any]]) -> None:
         st.markdown("\n".join(blocks), unsafe_allow_html=True)
 
     if groups["no"]:
-        with st.expander(f"Skipped as already tagged for AI cleanup: ({len(groups['no'])})", expanded=False):
+        with st.expander(f"Skipped as already tagged for AI cleanup ({len(groups['no'])})", expanded=False):
             skipped_items = "".join(
                 _format_triage_item_html(row, "no") for row in groups["no"]
             )
@@ -373,7 +373,7 @@ div[data-testid="stExpander"] {{
         """
         Help with [WikiProject AI Cleanup](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Cleanup) by finding Wikipedia articles with potential undetected LLM-generated text.
 
-        Read [WikiProject AI Cleanup Guide](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Cleanup/Guide) before tagging or taking action. This tool is based on [Gnomingstuff's guide](https://en.wikipedia.org/wiki/User:Gnomingstuff/Guide_to_finding_AI-generated_text).
+        Read [the AI Cleanup Guide](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Cleanup/Guide) before tagging or taking action. This tool is based on [Gnomingstuff's guide](https://en.wikipedia.org/wiki/User:Gnomingstuff/Guide_to_finding_AI-generated_text), which includes a [quiz](https://en.wikipedia.org/wiki/User:Gnomingstuff/Guide_to_finding_AI-generated_text#Quiz:_Test_your_searching_skills!).
         """
     )
 
@@ -517,7 +517,7 @@ div[data-testid="stExpander"] {{
     st.header("Tips and notes")
     st.markdown(
         """
-        Skip to step 2 if you want to provide a list of articles to scan, such as a list made with [Petscan](https://meta.wikimedia.org/wiki/PetScan/en). Just list the article titles, not the whole URLs.
+        Skip step 1 if you want to provide a list of articles to scan, such as a list made with [Petscan](https://meta.wikimedia.org/wiki/PetScan/en). Just list the article titles, not the whole URLs.
 
         [GPTZero Provenance Tool for Wikipedia](https://wikipedia.gptzero.me/) is a free-to-use tool that can help you check a suspicious article, but you need to make your own determination.
 
@@ -525,7 +525,7 @@ div[data-testid="stExpander"] {{
         
         To run searches with custom vocabulary, or to search and scan a larger number of articles, [use the command-line tool available from the repository](https://github.com/brittag/WikiTomte-LLM#setup).
 
-        This tool was made by [Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade) with [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) by [Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)). Check out [WikiProject AI Tools](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Tools) if you're interested in using LLMs to help you make tools to help Wikipedia editors.
+        This was made by [Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade) based on [Gnomingstuff's guide](https://en.wikipedia.org/wiki/User:Gnomingstuff/Guide_to_finding_AI-generated_text), with [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) by [Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)). The web framework is [Streamlit](https://streamlit.io/). Check out [WikiProject AI Tools](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Tools) if you're interested in using LLMs to help you make tools to help Wikipedia editors.
         
         A [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a [household spirit](https://en.wikipedia.org/wiki/Household_deity), a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always. The illustration at top right is by [Jenny Nyström](https://en.wikipedia.org/wiki/Jenny_Nystr%C3%B6m). Like most of her work, it is in the public domain, at least in the United States.
         """
