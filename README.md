@@ -13,7 +13,7 @@ The process is based on [User:Gnomingstuff's guide to finding AI-generated text]
 
 This method tends to find articles with promotional content in general, including some articles with LLM-generated text and other articles that were written by people with [conflicts of interest](https://en.wikipedia.org/wiki/Wikipedia:Conflict_of_interest).
 
-This tool was vibecoded by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade), with [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) made by [User:Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)). It is called WikiTomte-LLM because a [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always.
+This tool was made by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade), with the help of [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) by [User:Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_%28company%29). Check out [WikiProject AI Tools](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Tools) if you'd like to learn about using LLMs for making tools. It is called WikiTomte-LLM because a [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always.
 
 Search:
 

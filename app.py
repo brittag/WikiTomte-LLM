@@ -174,7 +174,7 @@ def _render_triage_results(rows: list[dict[str, Any]]) -> None:
         st.markdown("\n".join(blocks), unsafe_allow_html=True)
 
     if groups["no"]:
-        with st.expander(f"Skipped ({len(groups['no'])})", expanded=False):
+        with st.expander(f"Skipped as already tagged for AI cleanup: ({len(groups['no'])})", expanded=False):
             skipped_items = "".join(
                 _format_triage_item_html(row, "no") for row in groups["no"]
             )
@@ -353,10 +353,14 @@ h1#wiki-tomte-llm {{
     background-color: white;
     width: fit-content;
     opacity: .9;
+}}
 hr {{
-    margin: 0.5rem 0;
+    margin: 0rem;
 }}
 div[data-testid="stHeading"] h2 {{
+    margin-top: 0rem;
+}}
+div[data-testid="stExpander"] {{
     margin-top: 0.5rem;
 }}
 </style>
@@ -365,8 +369,12 @@ div[data-testid="stHeading"] h2 {{
         unsafe_allow_html=True,
     )
     st.title("WikiTomte-LLM")
-    st.caption(
-        "Help with [WikiProject AI Cleanup](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Cleanup) by finding Wikipedia articles with potential LLM-generated text, then scanning for suspicious passages."
+    st.markdown(
+        """
+        Help with [WikiProject AI Cleanup](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Cleanup) by finding Wikipedia articles with potential undetected LLM-generated text.
+
+        Read [WikiProject AI Cleanup Guide](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Cleanup/Guide) before tagging or taking action. This tool is based on [Gnomingstuff's guide](https://en.wikipedia.org/wiki/User:Gnomingstuff/Guide_to_finding_AI-generated_text).
+        """
     )
 
     try:
@@ -382,11 +390,11 @@ div[data-testid="stHeading"] h2 {{
     if "scan_report" not in st.session_state:
         st.session_state.scan_report = None
 
-    st.header("1. Search")
+    st.header("1. Search articles")
     st.markdown(
-        "Run a random CirrusSearch query using AI vocabulary "
+        ""
+        "Search for random combos of [AI vocabulary](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing#Language_and_grammar) to make a list of articles with potential LLM-generated text "
         f"(up to {DEFAULT_LIMIT} results). "
-        "Custom query modes are available via the [CLI](docs/search-triage.md)."
     )
 
     run_search = st.button("Run search", type="primary")
@@ -446,16 +454,16 @@ div[data-testid="stHeading"] h2 {{
             "ready to scan (yes + maybe). Edit the list below to remove any you don't want."
         )
 
-    st.divider()
-    st.header("2. Scan")
+    st.header("2. Scan articles")
     st.markdown(
-        "Scan articles for suspicious passages across all era bands. "
-        "This can take several minutes — do not close the tab."
+        """
+        Scan articles for suspicious amounts of AI vocabulary. This can take a few minutes (don't close the tab). Note that this method tends to find articles with promotional content and [tone issues](https://en.wikipedia.org/wiki/Wikipedia:Writing_better_articles#Tone) in general, not just LLM-generated text.
+        """
     )
 
     st.text_area(
         "Article titles (one per line)",
-        height=200,
+        height=150,
         key="scan_titles_text",
         placeholder="Paste article titles here, or run a search above",
     )
@@ -506,6 +514,22 @@ div[data-testid="stHeading"] h2 {{
             "Review the **Passage** column before taking action on articles."
         )
 
+    st.header("Tips and notes")
+    st.markdown(
+        """
+        Skip to step 2 if you want to provide a list of articles to scan, such as a list made with [Petscan](https://meta.wikimedia.org/wiki/PetScan/en). Just list the article titles, not the whole URLs.
+
+        [GPTZero Provenance Tool for Wikipedia](https://wikipedia.gptzero.me/) is a free-to-use tool that can help you check a suspicious article, but you need to make your own determination.
+
+        This code is open source: **[WikiTomte-LLM](https://github.com/brittag/WikiTomte-LLM)**. File issues and pull requests in the repository, or write a note at [User talk:Dreamyshade](https://en.wikipedia.org/wiki/User_talk:Dreamyshade).
+        
+        To run searches with custom vocabulary, or to search and scan a larger number of articles, [use the command-line tool available from the repository](https://github.com/brittag/WikiTomte-LLM#setup).
+
+        This tool was made by [Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade) with [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) by [Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)). Check out [WikiProject AI Tools](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Tools) if you're interested in using LLMs to help you make tools to help Wikipedia editors.
+        
+        A [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a [household spirit](https://en.wikipedia.org/wiki/Household_deity), a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always. The illustration at top right is by [Jenny Nyström](https://en.wikipedia.org/wiki/Jenny_Nystr%C3%B6m). Like most of her work, it is in the public domain, at least in the United States.
+        """
+    )
 
 if __name__ == "__main__":
     main()
