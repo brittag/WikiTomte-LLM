@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import html
 import io
 import logging
 import random
@@ -298,7 +299,9 @@ def parse_query_terms(query: str) -> List[str]:
 
 
 def strip_html(text: str) -> str:
-    return re.sub(r"<[^>]+>", "", text).replace("&nbsp;", " ").strip()
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    return text.replace("\xa0", " ").strip()
 
 
 def section_header_hit(section_title: str, era_config: Dict[str, Any]) -> str:
@@ -415,6 +418,20 @@ def write_articles_file(path: Path, rows: List[Dict[str, Any]]) -> None:
     log.info("Wrote %d article titles to %s", len(lines), path)
 
 
+def titles_for_scan(rows: List[Dict[str, Any]]) -> List[str]:
+    """Article titles to scan by default: prioritize yes and maybe, not no."""
+    seen: set[str] = set()
+    titles: List[str] = []
+    for row in rows:
+        if row.get("prioritize") == "no":
+            continue
+        title = row["title"]
+        if title not in seen:
+            seen.add(title)
+            titles.append(title)
+    return titles
+
+
 def resolve_search_params(
     query: Optional[str],
     phrase: Optional[str],
@@ -472,6 +489,8 @@ def run_triage(
     articles_path: Optional[Path],
     user_agent: str,
     delay: float,
+    *,
+    write_stdout: bool = True,
 ) -> Dict[str, Any]:
     vocab_data = load_vocab()
     weights = vocab_data["weights"]
@@ -530,7 +549,7 @@ def run_triage(
     if output_path:
         output_path.write_text(csv_content, encoding="utf-8")
         log.info("Wrote triage CSV to %s", output_path)
-    else:
+    elif write_stdout:
         print(csv_content, end="")
 
     if articles_path:
@@ -544,6 +563,7 @@ def run_triage(
         "already_tagged": tagged_count,
         "prioritize": prioritize_counts,
         "warnings": warnings,
+        "rows": rows,
     }
 
 
@@ -563,7 +583,7 @@ Examples:
     parser.add_argument("--phrase", help="Target phrase for era builder (2-4 words)")
     parser.add_argument("--narrow", nargs="+", default=[], help="Narrowing vocab words for era builder")
     parser.add_argument("--seed", type=int, help="Seed for reproducible random search or era-builder era selection")
-    parser.add_argument("--limit", type=int, default=100, help="Max search results (default: 100)")
+    parser.add_argument("--limit", type=int, default=50, help="Max search results (default: 50)")
     parser.add_argument("-o", "--output", help="Write triage CSV to this file")
     parser.add_argument("--write-articles", help="Write article titles to this file for ai_detector.py")
     parser.add_argument("--delay", type=float, default=0.5, help="Seconds between API requests")

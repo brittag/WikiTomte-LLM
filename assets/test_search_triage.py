@@ -158,6 +158,11 @@ class TestSnippetEnrichment(unittest.TestCase):
             strip_html('The <span class="searchmatch">crucial</span> role'),
             "The crucial role",
         )
+        self.assertEqual(strip_html("world&#039;s"), "world's")
+        self.assertEqual(
+            strip_html("&quot;crucial role&quot;"),
+            '"crucial role"',
+        )
 
     def test_section_header_hit(self):
         hit = section_header_hit(

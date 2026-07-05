@@ -145,6 +145,17 @@ def read_article_list(path: Path) -> List[str]:
     return titles
 
 
+def parse_article_titles(text: str) -> List[str]:
+    """Parse article titles from multiline text (same rules as read_article_list)."""
+    titles: List[str] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        titles.append(line)
+    return titles
+
+
 AI_GENERATED_TEMPLATE = "ai-generated"
 AI_GENERATED_CAUTION = "Already tagged with {{AI-generated}}"
 _TEMPLATE_NAME_PREFIXES = ("template:", "subst:", "safesubst:")
@@ -781,6 +792,8 @@ def write_report(
     report: Dict[str, Any],
     output_path: Optional[Path],
     as_json: bool,
+    *,
+    write_stdout: bool = True,
 ) -> None:
     if as_json:
         content = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
@@ -790,25 +803,27 @@ def write_report(
     if output_path:
         output_path.write_text(content, encoding="utf-8")
         log.info("Wrote %s report to %s", "JSON" if as_json else "CSV", output_path)
-    else:
+    elif write_stdout:
         print(content, end="")
 
 
-def run_batch(
-    input_path: Path,
+def run_batch_from_titles(
+    titles: List[str],
     output_path: Optional[Path],
     min_score: float,
     user_agent: str,
     delay: float,
     as_json: bool = False,
     era: Optional[str] = None,
+    *,
+    input_label: str = "titles",
+    write_stdout: bool = True,
 ) -> Dict[str, Any]:
+    if not titles:
+        raise ValueError("No article titles to scan")
+
     vocab_data = load_vocab()
     eras = resolve_eras(vocab_data, era)
-
-    titles = read_article_list(input_path)
-    if not titles:
-        raise ValueError(f"No article titles found in {input_path}")
 
     client = WikimediaClient(user_agent=user_agent, delay=delay)
     articles: List[Dict[str, Any]] = []
@@ -829,7 +844,7 @@ def run_batch(
     tagged_titles = {a["title"] for a in articles if a.get("ai_tagged")}
     report = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
-        "input_file": str(input_path),
+        "input_file": input_label,
         "eras": eras,
         "era": era if era else "all",
         "min_score": min_score,
@@ -846,8 +861,33 @@ def run_batch(
         "errors": errors,
     }
 
-    write_report(report, output_path, as_json=as_json)
+    write_report(report, output_path, as_json=as_json, write_stdout=write_stdout)
     return report
+
+
+def run_batch(
+    input_path: Path,
+    output_path: Optional[Path],
+    min_score: float,
+    user_agent: str,
+    delay: float,
+    as_json: bool = False,
+    era: Optional[str] = None,
+) -> Dict[str, Any]:
+    titles = read_article_list(input_path)
+    if not titles:
+        raise ValueError(f"No article titles found in {input_path}")
+
+    return run_batch_from_titles(
+        titles,
+        output_path=output_path,
+        min_score=min_score,
+        user_agent=user_agent,
+        delay=delay,
+        as_json=as_json,
+        era=era,
+        input_label=str(input_path),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

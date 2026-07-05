@@ -5,3 +5,5 @@ examples/smoke-report.json
 candidates.txt
 triage.csv
 report.csv
+__pycache__/
+assets/__pycache__/

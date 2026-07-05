@@ -23,6 +23,22 @@ Scan:
 
 ![Screenshot of output](docs/scan-screenshot.png)
 
+## Web app (GitHub Codespaces)
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/brittag/WikiTomte-LLM)
+
+The fastest way to try WikiTomte-LLM in a browser:
+
+1. Click **Open in GitHub Codespaces** above.
+2. Add a [Codespaces secret](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-secrets-for-your-codespaces) named `WIKITOMTE_USER_AGENT` with your contact info, for example:
+   ```
+   WikiTomte-LLM/1.0 (User:YourUsername, you@example.com) WikiTomte-LLM/1.0
+   ```
+3. Rebuild or recreate the codespace if you add the secret after creation.
+4. The Streamlit app opens on port **8501** — search for candidates, review results, then scan.
+
+The web app runs random search only (v1). Era-builder, freeform queries, and other CLI options remain available below.
+
 ## Setup
 
 Download and install the code:
@@ -33,7 +49,7 @@ cd WikiTomte-LLM
 pip install -r requirements.txt
 ```
 
-Set up a unique User-Agent, per [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy). Copy `config.example.json` to `config.json` and replace the placeholder with your email address or Wikipedia username.
+Set up a unique User-Agent, per [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy). Copy `config.example.json` to `config.json` and replace the placeholder with your email address or Wikipedia username. In Codespaces, use the `WIKITOMTE_USER_AGENT` secret instead.
 
 ```bash
 cp config.example.json config.json

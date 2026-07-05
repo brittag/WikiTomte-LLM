@@ -1,0 +1,21 @@
+{
+  "name": "WikiTomte-LLM",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "postCreateCommand": "pip install -r requirements.txt",
+  "postStartCommand": "streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true",
+  "forwardPorts": [8501],
+  "portsAttributes": {
+    "8501": {
+      "label": "WikiTomte",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "secrets": {
+    "WIKITOMTE_USER_AGENT": {
+      "description": "Wikimedia API User-Agent string (username or email required)"
+    }
+  },
+  "containerEnv": {
+    "WIKITOMTE_USER_AGENT": "${localEnv:WIKITOMTE_USER_AGENT}"
+  }
+}
