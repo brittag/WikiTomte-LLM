@@ -57,6 +57,12 @@ PASSAGE_CLUSTER_GAP = 400
 # exclude unless part of a phrase.
 SKIP_STANDALONE_VOCAB = {"key"}
 
+# Lowercase in MOS sentence-case headings; capitalized after these suggests title case.
+_HEADING_CONNECTORS = frozenset({
+    "a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on",
+    "or", "the", "to", "vs", "with",
+})
+
 
 @dataclass
 class Section:
@@ -310,6 +316,47 @@ def wikitext_to_sections(wikitext: str) -> Tuple[str, List[Section]]:
     return full_text, sections
 
 
+def _is_title_case_word(word: str) -> bool:
+    """True if word looks Title-cased (initial cap, not ALL CAPS)."""
+    if not word or word.lower() in _HEADING_CONNECTORS:
+        return False
+    for part in word.split("-"):
+        if len(part) < 2:
+            return False
+        if not part[0].isupper():
+            return False
+        if len(part) > 1 and part[1:].isupper():
+            return False
+    return True
+
+
+def is_title_case_heading(name: str) -> bool:
+    """
+    Detect section headings that use title case instead of Wikipedia MOS sentence case.
+
+    Conservative: requires 2+ words, skips Lead/one-word headings, and looks for
+    multiple Title-cased content words or a lowercase connector followed by one.
+    """
+    name = name.strip()
+    if not name or name.lower() == "lead":
+        return False
+    words = name.split()
+    if len(words) < 2:
+        return False
+    if name.isupper():
+        return False
+
+    for i, word in enumerate(words):
+        if word.lower() in _HEADING_CONNECTORS and i + 1 < len(words):
+            if _is_title_case_word(words[i + 1]):
+                return True
+
+    non_connectors = [w for w in words if w.lower() not in _HEADING_CONNECTORS]
+    if len(non_connectors) >= 2 and all(_is_title_case_word(w) for w in non_connectors):
+        return True
+    return False
+
+
 def _word_boundary_pattern(word: str) -> re.Pattern[str]:
     escaped = re.escape(word)
     return re.compile(rf"\b{escaped}\b", re.IGNORECASE)
@@ -384,6 +431,17 @@ def find_matches(
                     weight=weights["section_header"],
                     section=sec.name,
                 ))
+
+    title_case_weight = weights.get("title_case_heading", 1.0)
+    for sec in sections:
+        if is_title_case_heading(sec.name):
+            matches.append(Match(
+                indicator=sec.name,
+                match_type="title_case_heading",
+                offset=sec.start,
+                weight=title_case_weight,
+                section=sec.name,
+            ))
 
     for pattern_spec in era_config.get("patterns", []):
         indicator = pattern_spec.get("indicator", "pattern")

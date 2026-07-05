@@ -366,6 +366,7 @@
     "phrase": 3.0,
     "vocab": 1.5,
     "section_header": 3.0,
+    "title_case_heading": 1.0,
     "sentence_initial": 2.0,
     "punctuation": 1.0,
     "cooccurrence_bonus": 0.5

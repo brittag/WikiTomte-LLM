@@ -22,6 +22,7 @@ from ai_detector import (
     format_report_csv,
     has_ai_generated_template,
     is_ai_generated_template_name,
+    is_title_case_heading,
     load_vocab,
     page_has_ai_generated_category,
     page_is_ai_tagged,
@@ -68,7 +69,7 @@ class TestVocabConfig(unittest.TestCase):
 
     def test_weights_present(self):
         vocab = load_vocab()
-        for key in ("phrase", "vocab", "section_header", "sentence_initial", "punctuation"):
+        for key in ("phrase", "vocab", "section_header", "title_case_heading", "sentence_initial", "punctuation"):
             self.assertIn(key, vocab["weights"])
 
     def test_resolve_eras_default_all(self):
@@ -176,6 +177,62 @@ class TestWikitextParsing(unittest.TestCase):
         self.assertIn("Lead", names)
         self.assertIn("Legacy", names)
         self.assertIn("Challenges and Future Directions", names)
+
+
+class TestTitleCaseHeading(unittest.TestCase):
+    def test_is_title_case_heading_positive(self):
+        self.assertTrue(is_title_case_heading("Early Life"))
+        self.assertTrue(is_title_case_heading("Career Highlights"))
+        self.assertTrue(is_title_case_heading("Challenges and Future Directions"))
+
+    def test_is_title_case_heading_negative(self):
+        self.assertFalse(is_title_case_heading("Lead"))
+        self.assertFalse(is_title_case_heading("Legacy"))
+        self.assertFalse(is_title_case_heading("Early life"))
+        self.assertFalse(is_title_case_heading("Career highlights"))
+        self.assertFalse(is_title_case_heading("Challenges and future directions"))
+
+    def test_find_matches_emits_title_case_heading(self):
+        wikitext = (
+            "Lead prose here.\n\n"
+            "== Early Life ==\n"
+            "Section text with landscape and pivotal words.\n"
+        )
+        _, sections = wikitext_to_sections(wikitext)
+        full_text = " ".join(s.text for s in sections)
+        vocab = load_vocab()
+        era = vocab["eras"]["gpt4"]
+        weights = vocab["weights"]
+        matches = find_matches(full_text, sections, era, weights)
+        title_case = [m for m in matches if m.match_type == "title_case_heading"]
+        self.assertEqual(len(title_case), 1)
+        self.assertEqual(title_case[0].indicator, "Early Life")
+        self.assertEqual(title_case[0].weight, weights["title_case_heading"])
+
+    def test_title_case_weight_lower_than_section_header(self):
+        vocab = load_vocab()
+        weights = vocab["weights"]
+        self.assertLess(weights["title_case_heading"], weights["section_header"])
+
+    def test_title_case_heading_increases_score(self):
+        vocab = load_vocab()
+        era = vocab["eras"]["gpt4"]
+        weights = vocab["weights"]
+        prose = "Some prose in the section."
+        sections_title = [
+            Section(name="Lead", level=2, start=0, text=prose),
+            Section(name="Early Life", level=2, start=len(prose) + 1, text=prose),
+        ]
+        sections_sentence = [
+            Section(name="Lead", level=2, start=0, text=prose),
+            Section(name="Early life", level=2, start=len(prose) + 1, text=prose),
+        ]
+        full_text = prose + "\n" + prose
+        with_title = find_matches(full_text, sections_title, era, weights)
+        with_sentence = find_matches(full_text, sections_sentence, era, weights)
+        score_title = compute_suspicion_score(with_title, len(full_text), weights)
+        score_sentence = compute_suspicion_score(with_sentence, len(full_text), weights)
+        self.assertGreater(score_title, score_sentence)
 
 
 class TestMatching(unittest.TestCase):

@@ -207,7 +207,6 @@ class TestSnippetEnrichment(unittest.TestCase):
         )
         self.assertEqual(row["ai_tagged"], "yes")
         self.assertEqual(row["prioritize"], "no")
-        self.assertIn("Already tagged", row["cautions"])
 
 
 class TestCsvOutput(unittest.TestCase):
@@ -227,10 +226,9 @@ class TestCsvOutput(unittest.TestCase):
             "section_header_hit": "",
             "prioritize": "maybe",
             "ai_tagged": "no",
-            "cautions": "",
         }])
         self.assertTrue(csv_text.startswith("title,"))
-        self.assertEqual(len(TRIAGE_COLUMNS), 15)
+        self.assertEqual(len(TRIAGE_COLUMNS), 14)
 
     def test_triage_csv_sorted_by_prioritize(self):
         csv_text = format_triage_csv([
@@ -249,7 +247,6 @@ class TestCsvOutput(unittest.TestCase):
                 "section_header_hit": "",
                 "prioritize": "no",
                 "ai_tagged": "no",
-                "cautions": "",
             },
             {
                 "title": "Yes",
@@ -266,7 +263,6 @@ class TestCsvOutput(unittest.TestCase):
                 "section_header_hit": "",
                 "prioritize": "yes",
                 "ai_tagged": "no",
-                "cautions": "",
             },
             {
                 "title": "Maybe",
@@ -283,7 +279,6 @@ class TestCsvOutput(unittest.TestCase):
                 "section_header_hit": "",
                 "prioritize": "maybe",
                 "ai_tagged": "no",
-                "cautions": "",
             },
         ])
         rows = list(csv.DictReader(io.StringIO(csv_text)))

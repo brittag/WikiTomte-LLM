@@ -38,6 +38,8 @@ Freeform `--query` requires `--era` for snippet indicator scanning.
 | `title` | Article title (use in `articles.txt` for batch scan) |
 | `pageid` | Wikipedia page ID |
 | `url` | Link to article |
+| `prioritize` | `yes` = extra indicators or header hit; `maybe` = query terms only; `no` = likely false positive or already tagged with `{{AI-generated}}` |
+| `ai_tagged` | `yes` if the article lead contains `{{AI-generated}}` (including `{{AI-generated|date=...}}`); `no` otherwise. Tagged articles are deprioritized (`prioritize=no`) but remain in the CSV |
 | `era` | Era band used for snippet indicator scan |
 | `query` | Full CirrusSearch query executed |
 | `score` | CirrusSearch relevance score |
@@ -47,9 +49,6 @@ Freeform `--query` requires `--era` for snippet indicator scanning.
 | `query_terms` | Indicators from your query found in the snippet |
 | `extra_indicators` | Additional era indicators in snippet not in the query |
 | `section_header_hit` | Suspicious section header matched |
-| `prioritize` | `yes` = extra indicators or header hit; `maybe` = query terms only; `no` = likely false positive or already tagged with `{{AI-generated}}` |
-| `ai_tagged` | `yes` if the article lead contains `{{AI-generated}}` (including `{{AI-generated|date=...}}`); `no` otherwise. Tagged articles are deprioritized (`prioritize=no`) but remain in the CSV |
-| `cautions` | False-positive context notes |
 
 ## Interpreting results
 

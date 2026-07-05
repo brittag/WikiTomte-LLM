@@ -33,9 +33,7 @@ except ImportError:
     sys.exit(1)
 
 from ai_detector import (
-    AI_GENERATED_CAUTION,
     Section,
-    detect_cautions,
     find_matches,
     has_ai_generated_template,
     load_vocab,
@@ -54,6 +52,8 @@ TRIAGE_COLUMNS = [
     "title",
     "pageid",
     "url",
+    "prioritize",
+    "ai_tagged",
     "era",
     "query",
     "score",
@@ -63,9 +63,6 @@ TRIAGE_COLUMNS = [
     "query_terms",
     "extra_indicators",
     "section_header_hit",
-    "prioritize",
-    "ai_tagged",
-    "cautions",
 ]
 
 PRIORITIZE_ORDER = {"yes": 0, "maybe": 1, "no": 2}
@@ -336,15 +333,10 @@ def enrich_result(
 
     header_hit = section_header_hit(section, era_config)
 
-    cautions = detect_cautions(title, [], vocab_data)
-
     if ai_tagged:
         prioritize = "no"
-        if AI_GENERATED_CAUTION not in cautions:
-            cautions.append(AI_GENERATED_CAUTION)
     elif foster_false_positive(title, query):
         prioritize = "no"
-        cautions = cautions + ["Title may contain 'Foster' — possible foster/fostering false positive"]
     elif found_extra or header_hit:
         prioritize = "yes"
     elif found_query_terms:
@@ -367,7 +359,6 @@ def enrich_result(
         "section_header_hit": header_hit,
         "prioritize": prioritize,
         "ai_tagged": "yes" if ai_tagged else "no",
-        "cautions": "; ".join(cautions),
     }
 
 
