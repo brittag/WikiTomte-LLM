@@ -5,7 +5,6 @@ enrich snippets with era indicators, and export a reviewable CSV + articles.txt.
 
 Usage:
     python3 search_triage.py --random -o triage.csv --write-articles candidates.txt
-    python3 search_triage.py --preset gpt4o-legacy -o triage.csv --write-articles candidates.txt
     python3 search_triage.py --phrase "crucial role" --narrow underscore emphasizing -o triage.csv
     python3 search_triage.py --query '"crucial role" emphasize underscore' --era gpt4o -o triage.csv
 """
@@ -15,7 +14,6 @@ from __future__ import annotations
 import argparse
 import csv
 import io
-import json
 import logging
 import random
 import re
@@ -43,7 +41,6 @@ from config import get_user_agent
 
 log = logging.getLogger("search_triage")
 
-QUERIES_PATH = Path(__file__).resolve().parent / "search_queries.json"
 WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
 ERA_POOL = ["gpt4", "gpt4o", "gpt5", "grok"]
 SRPROP = "size|wordcount|timestamp|snippet|sectiontitle|sectionsnippet|score"
@@ -194,11 +191,6 @@ class CirrusSearchClient:
         if elapsed < self.delay:
             time.sleep(self.delay - elapsed)
         self._last_request = time.monotonic()
-
-
-def load_presets(path: Path = QUERIES_PATH) -> Dict[str, Any]:
-    with open(path, encoding="utf-8") as f:
-        return json.load(f).get("presets", {})
 
 
 def pick_era(era: Optional[str], seed: Optional[int] = None) -> str:
@@ -395,7 +387,6 @@ def write_articles_file(path: Path, rows: List[Dict[str, Any]]) -> None:
 
 
 def resolve_search_params(
-    preset: Optional[str],
     query: Optional[str],
     phrase: Optional[str],
     narrow: List[str],
@@ -407,8 +398,8 @@ def resolve_search_params(
 ) -> Tuple[str, str]:
     """Return (query_string, era)."""
     if random_mode:
-        if preset or query or phrase:
-            raise ValueError("--random cannot be combined with --preset, --query, or --phrase")
+        if query or phrase:
+            raise ValueError("--random cannot be combined with --query or --phrase")
         if era:
             raise ValueError("--random cannot be combined with --era")
         if narrow:
@@ -420,14 +411,6 @@ def resolve_search_params(
         )
         log.info("Random search: era=%s phrase=%r narrowers=%s", chosen_era, chosen_phrase, chosen_narrow)
         return query_str, chosen_era
-
-    if preset:
-        presets = load_presets()
-        if preset not in presets:
-            valid = ", ".join(presets.keys())
-            raise ValueError(f"Unknown preset '{preset}'. Valid presets: {valid}")
-        p = presets[preset]
-        return p["query"], p["era"]
 
     if query:
         if not era:
@@ -443,11 +426,10 @@ def resolve_search_params(
             log.info("Random era selected: %s", chosen_era)
         return build_query(phrase, narrow), chosen_era
 
-    raise ValueError("Provide --random, --preset, --query, or --phrase (era builder)")
+    raise ValueError("Provide --random, --query, or --phrase (era builder)")
 
 
 def run_triage(
-    preset: Optional[str],
     query: Optional[str],
     phrase: Optional[str],
     narrow: List[str],
@@ -464,7 +446,7 @@ def run_triage(
     weights = vocab_data["weights"]
 
     query_str, chosen_era = resolve_search_params(
-        preset, query, phrase, narrow, era, seed,
+        query, phrase, narrow, era, seed,
         random_mode=random_mode,
         vocab_data=vocab_data,
     )
@@ -542,7 +524,6 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   %(prog)s --random -o triage.csv --write-articles candidates.txt
-  %(prog)s --preset gpt4o-legacy -o triage.csv --write-articles candidates.txt
   %(prog)s --phrase "crucial role" --narrow underscore emphasizing -o triage.csv
   %(prog)s --query '"crucial role" emphasize underscore' --era gpt4o -o triage.csv
         """.strip(),
@@ -552,7 +533,6 @@ Examples:
         action="store_true",
         help="Pick era, phrase, and 2 narrowers from ai_vocab.json (skips eras with no phrases)",
     )
-    parser.add_argument("--preset", help="Named query preset from search_queries.json")
     parser.add_argument("--query", help="Raw CirrusSearch query (requires --era)")
     parser.add_argument("--era", choices=ERA_POOL, help="Era band (random in era-builder if omitted)")
     parser.add_argument("--phrase", help="Target phrase for era builder (2-4 words)")
@@ -583,7 +563,6 @@ def main() -> None:
 
     try:
         summary = run_triage(
-            preset=args.preset,
             query=args.query,
             phrase=args.phrase,
             narrow=args.narrow,

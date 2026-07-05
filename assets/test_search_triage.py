@@ -57,17 +57,17 @@ class TestQueryBuilder(unittest.TestCase):
     def test_pick_era_random_reproducible(self):
         self.assertEqual(pick_era(None, seed=42), pick_era(None, seed=42))
 
-    def test_resolve_preset(self):
+    def test_resolve_freeform(self):
         query, era = resolve_search_params(
-            preset="gpt4o-legacy", query=None, phrase=None,
-            narrow=[], era=None, seed=None,
+            query='"crucial role" emphasize underscore', phrase=None,
+            narrow=[], era="gpt4o", seed=None,
         )
         self.assertEqual(era, "gpt4o")
         self.assertIn("crucial role", query)
 
     def test_resolve_era_builder_random(self):
         query, era = resolve_search_params(
-            preset=None, query=None, phrase="crucial role",
+            query=None, phrase="crucial role",
             narrow=["underscore"], era=None, seed=1,
         )
         self.assertIn(era, ("gpt4", "gpt4o", "gpt5", "grok"))
@@ -76,7 +76,7 @@ class TestQueryBuilder(unittest.TestCase):
     def test_resolve_freeform_requires_era(self):
         with self.assertRaises(ValueError):
             resolve_search_params(
-                preset=None, query='"crucial role"', phrase=None,
+                query='"crucial role"', phrase=None,
                 narrow=[], era=None, seed=None,
             )
 
@@ -97,7 +97,7 @@ class TestQueryBuilder(unittest.TestCase):
 
     def test_resolve_random(self):
         query, era = resolve_search_params(
-            preset=None, query=None, phrase=None,
+            query=None, phrase=None,
             narrow=[], era=None, seed=42,
             random_mode=True, vocab_data=self.vocab,
         )
@@ -107,7 +107,7 @@ class TestQueryBuilder(unittest.TestCase):
     def test_resolve_random_rejects_conflicts(self):
         with self.assertRaises(ValueError):
             resolve_search_params(
-                preset="gpt4o-legacy", query=None, phrase=None,
+                query=None, phrase="crucial role",
                 narrow=[], era=None, seed=None,
                 random_mode=True, vocab_data=self.vocab,
             )

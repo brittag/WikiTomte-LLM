@@ -38,8 +38,9 @@ Find candidate articles via Wikipedia search and review snippets before fetching
 python3 assets/search_triage.py --random \
   -o triage.csv --write-articles candidates.txt
 
-# Curated preset query
-python3 assets/search_triage.py --preset gpt4o-legacy \
+# Hand-crafted CirrusSearch query (see docs/search-triage.md for more examples)
+python3 assets/search_triage.py \
+  --query '"crucial role" emphasize underscore' --era gpt4o \
   -o triage.csv --write-articles candidates.txt
 
 # Shell wrapper

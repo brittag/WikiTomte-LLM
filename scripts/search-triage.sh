@@ -12,7 +12,6 @@ a triage CSV for review, plus an optional articles.txt for batch-ai-scan.
 
 OPTIONS:
   --random          Pick era, phrase, and 2 narrowers from ai_vocab.json
-  --preset NAME     Named query from assets/search_queries.json
   --query TEXT      Raw CirrusSearch query (requires --era)
   --phrase TEXT     Target phrase for era builder
   --narrow WORDS    Narrowing vocab words (era builder)
@@ -27,7 +26,7 @@ OPTIONS:
 
 EXAMPLES:
   $(basename "$0") --random -o triage.csv --write-articles candidates.txt
-  $(basename "$0") --preset gpt4o-legacy -o triage.csv --write-articles candidates.txt
+  $(basename "$0") --query '"crucial role" emphasize underscore' --era gpt4o -o triage.csv
   $(basename "$0") --phrase "crucial role" --narrow underscore emphasizing -o triage.csv
 EOF
     exit 0

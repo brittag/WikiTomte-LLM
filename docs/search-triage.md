@@ -20,7 +20,6 @@ python3 assets/search_triage.py --random \
 | Mode | Example |
 |------|---------|
 | Random | `--random` |
-| Preset | `--preset gpt4o-legacy` |
 | Era builder (random era) | `--phrase "crucial role" --narrow underscore emphasizing` |
 | Era builder (fixed era) | `--era gpt4o --phrase "crucial role" --narrow underscore` |
 | Freeform | `--query '"crucial role" emphasize underscore' --era gpt4o` |
@@ -61,8 +60,14 @@ Freeform `--query` requires `--era` for snippet indicator scanning.
 
 A User-Agent is required in `config.json`. Copy `config.example.json` to `config.json` and set your contact info — the tool refuses to run without it or with the placeholder value still in place.
 
-## Presets
+## Example freeform queries
 
-Named queries live in [assets/search_queries.json](../assets/search_queries.json). Add your own presets there.
+Use `--query` with `--era` to run hand-crafted CirrusSearch strings:
+
+| Style | Era | Query |
+|-------|-----|-------|
+| WP:AILEGACY / WP:SUPERFICIAL | `gpt4o` | `"crucial role" emphasize underscore` |
+| WP:AIDISCLAIMER | `gpt5` | `"not widely documented"` |
+| GPT-4 sentence-initial Additionally | `gpt4` | `insource:/Additionally\, / delve meticulously` |
 
 Queries containing `insource:` regex are slow and taxing on Wikimedia servers — use sparingly and pair with other keywords.
