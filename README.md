@@ -4,14 +4,12 @@ This tool is an experiment in auto-identifying potential undetected LLM-generate
 
 What you can do with this tool:
 
-1. **Create a candidate article list.** Run a command to create a list of articles with potential LLM-generated text by searching all articles for random combinations of AI vocabulary. You get a CSV of search results and a plain-text list of article names.
+1. **Create a candidate article list.** Run a command to create a list of articles with potential LLM-generated text by searching all articles for random combinations of AI vocabulary. You get a CSV of search results and a plain-text list of article names. You can import CSVs into Google Sheets or another spreadsheet application to sort, filter, and make decisions.
 1. **Scan articles to find suspicious passages.** Run another command to scan each article on the list for significant LLM vocabulary overall and particularly suspicious passages. You get a CSV with all of the data for review.
 
-You can skip directly to scanning if you want to provide your own list of articles to scan, such as a list you made using [Petscan](https://meta.wikimedia.org/wiki/PetScan/en).
+(You can skip directly to scanning if you want to provide your own list of articles to scan, such as a list you made using [Petscan](https://meta.wikimedia.org/wiki/PetScan/en).)
 
-You can import CSVs into Google Sheets or another spreadsheet application to sort, filter, and make decisions.
-
-The process is based on [User:Gnomingstuff's guide to finding AI-generated text](https://en.wikipedia.org/wiki/User:Gnomingstuff/Guide_to_finding_AI-generated_text). It uses the vocabulary lists in [Wikipedia:Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing), supplemented with additional vocabulary lists.
+The process is based on [User:Gnomingstuff's guide to finding AI-generated text](https://en.wikipedia.org/wiki/User:Gnomingstuff/Guide_to_finding_AI-generated_text). It uses the vocabulary lists in [Wikipedia:Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing), supplemented with additional vocabulary lists. Read [WikiProject AI Cleanup/Guide](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Cleanup/Guide) before taking action on articles.
 
 This method tends to find articles with promotional content in general, including some articles with LLM-generated text and other articles that were written by people with [conflicts of interest](https://en.wikipedia.org/wiki/Wikipedia:Conflict_of_interest).
 
@@ -25,20 +23,20 @@ cp config.example.json config.json
 # Edit config.json with your User-Agent contact info
 ```
 
-A User-Agent is required in `config.json`, per [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy). Copy `config.example.json` to `config.json` and replace the placeholder with your real contact info.
+You need to set up a unique User-Agent, per [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy). Copy `config.example.json` to `config.json` and replace the placeholder with your real contact info.
 
-## Quick start
+## Start
 
-**Step 1 — Search and triage.** Find candidate articles via Wikipedia search; review snippets before fetching full article text.
+**Step 1: Search.** Find candidate articles by searching Wikipedia for random combinations of AI vocabulary words, and review the list of search results with excerpts.
 
 ```bash
 python3 assets/search_triage.py --random \
   -o triage.csv --write-articles candidates.txt
 ```
 
-Review `triage.csv`. Edit `candidates.txt` to remove false positives. See [docs/search-triage.md](docs/search-triage.md) for column meanings.
+Review `triage.csv`. Edit `candidates.txt` to remove obvious false positives and any other articles you don't need to scan in depth, such as articles already flagged for AI cleanup. See [docs/search-triage.md](docs/search-triage.md) for column meanings.
 
-**Step 2 — Scan.** Scan remaining candidates for suspicious passages across all era vocabulary lists.
+**Step 2: Scan.** Scan remaining candidates for suspicious passages across AI vocabulary lists from multiple eras (GPT-4, GPT-4o, GPT-5, generic AI vocabulary list).
 
 ```bash
 python3 assets/ai_detector.py candidates.txt -o report.csv
