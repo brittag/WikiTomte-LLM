@@ -15,8 +15,7 @@ The process is based on [User:Gnomingstuff's guide to finding AI-generated text]
 
 This method tends to find articles with promotional content in general, including some articles with LLM-generated text and other articles that were written by people with [conflicts of interest](https://en.wikipedia.org/wiki/Wikipedia:Conflict_of_interest).
 
-This tool was vibecoded by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade) using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)).
-
+This tool was vibecoded by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade) using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)) and [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) made by [User:Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado).
 
 ## Setup
 
