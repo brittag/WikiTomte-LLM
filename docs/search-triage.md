@@ -52,7 +52,7 @@ Freeform `--query` requires `--era` for snippet indicator scanning.
 - **`prioritize=yes`** — Open the article. The snippet contains AI indicators beyond your search terms.
 - **`prioritize=maybe`** — Skim the snippet; may be a weak hit or only query-term matches.
 - **`prioritize=no`** — Likely false positive (e.g. "Foster" in title when searching for "foster"), or already tagged with `{{AI-generated}}` (`ai_tagged=yes`).
-- **Result count** — The tool warns if fewer than 10 or more than 500 results (doc suggests dozens to hundreds).
+- **Result count** — The tool notes fewer than 10 results (query too narrow) or more than 500 results (query too broad).
 
 ## Configuration
 
@@ -60,7 +60,7 @@ A User-Agent is required in `config.json`. Copy `config.example.json` to `config
 
 ## Example freeform queries
 
-Use `--query` with `--era` to run hand-crafted CirrusSearch strings:
+Use `--query` with `--era` to run your own CirrusSearch strings:
 
 | Style | Era | Query |
 |-------|-----|-------|
