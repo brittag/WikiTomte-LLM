@@ -540,7 +540,7 @@ Examples:
     parser.add_argument("--seed", type=int, help="Seed for reproducible --random or era-builder era selection")
     parser.add_argument("--limit", type=int, default=100, help="Max search results (default: 100)")
     parser.add_argument("-o", "--output", help="Write triage CSV to this file")
-    parser.add_argument("--write-articles", help="Write article titles to this file for batch-ai-scan")
+    parser.add_argument("--write-articles", help="Write article titles to this file for ai_detector.py")
     parser.add_argument("--delay", type=float, default=0.5, help="Seconds between API requests")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
     return parser

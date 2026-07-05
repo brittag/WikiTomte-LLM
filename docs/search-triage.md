@@ -11,8 +11,8 @@ python3 assets/search_triage.py --random \
 
 # Review triage.csv; edit candidates.txt to remove false positives
 
-# Step 2: Deep scan (existing tool)
-./scripts/batch-ai-scan.sh candidates.txt -o report.csv
+# Step 2: Deep scan
+python3 assets/ai_detector.py candidates.txt -o report.csv
 ```
 
 ## Query modes

@@ -33,6 +33,15 @@ Articles with multiple suspicious passages appear on **multiple rows**. When all
 | `cautions` | Semicolon-separated notes about possible false-positive contexts (e.g. technology or sociology articles where some phrasing is more expected). Informational only — matches are not suppressed |
 | `error` | Error message if the article failed to scan. Empty on successful rows |
 
+## CLI options
+
+| Flag | Description |
+|------|-------------|
+| `--era` | Scan one era only: `gpt4`, `gpt4o`, `gpt5`, `grok`, or `generic` (default: all eras) |
+| `--json` | Write JSON instead of CSV |
+| `--min-score` | Flag threshold 0.0–1.0 (default: 0.4); article must also have ≥2 matches |
+| `--delay` | Seconds between API requests (default: 0.5) |
+
 ## Usage notes
 
 - Review `passage_text` and `indicators` together; co-occurring era-appropriate vocabulary in the same section is stronger signal than an isolated hit.
