@@ -15,11 +15,15 @@ This method tends to find articles with promotional content in general, includin
 
 This tool was made by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade), with the help of [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) by [User:Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_%28company%29). Check out [WikiProject AI Tools](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Tools) if you'd like to learn about using LLMs for making tools. It is called WikiTomte-LLM because a [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always.
 
-Search:
+Web app:
+
+![Screenshot of web app](docs/webapp-screenshot.png)
+
+Search - CSV output:
 
 ![Screenshot of triage](docs/search-triage-screenshot.png)
 
-Scan:
+Scan - CSV output:
 
 ![Screenshot of output](docs/scan-screenshot.png)
 
@@ -39,15 +43,15 @@ The fastest way to try WikiTomte-LLM in a browser:
 
 The web app runs random search only (v1). Era-builder, freeform queries, and other CLI options remain available below.
 
-## Setup
+## Set up command-line interface
 
 Download and install the code:
 
-```
-git clone https://github.com/brittag/WikiTomte-LLM.git
-cd WikiTomte-LLM
-pip install -r requirements.txt
-```
+`git clone https://github.com/brittag/WikiTomte-LLM.git`
+
+`cd WikiTomte-LLM`
+
+`pip install -r requirements.txt`
 
 Set up a unique User-Agent, per [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy). Copy `config.example.json` to `config.json` and replace the placeholder with your email address or Wikipedia username. In Codespaces, use the `WIKITOMTE_USER_AGENT` secret instead.
 
