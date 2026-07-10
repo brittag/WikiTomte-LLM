@@ -302,6 +302,12 @@ def _render_setup_error(exc: ValueError) -> None:
 
 Wikipedia requires a descriptive User-Agent with contact info.
 
+**On Toolforge:**
+
+1. SSH to Toolforge and become the tool: `become wikitomte-llm`
+2. Set the User-Agent: `toolforge env set WIKITOMTE_USER_AGENT "WikiTomte-LLM/1.0 (User:YourUsername, you@example.com) WikiTomte-LLM/1.0"`
+3. Restart the webservice: `toolforge webservice buildservice restart`
+
 **In GitHub Codespaces:**
 
 1. Go to **GitHub → Settings → Codespaces → Secrets**

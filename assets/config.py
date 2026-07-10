@@ -17,8 +17,9 @@ PLACEHOLDER_USER_AGENT = (
 )
 
 _SETUP_MESSAGE = (
-    "Set WIKITOMTE_USER_AGENT (GitHub Codespaces secret) or copy "
-    "config.example.json to config.json and set user_agent to your contact info.\n"
+    "Set WIKITOMTE_USER_AGENT (Toolforge: toolforge env set; "
+    "GitHub Codespaces: repository secret) or copy config.example.json "
+    "to config.json and set user_agent to your contact info.\n"
     "See: https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy"
 )
 

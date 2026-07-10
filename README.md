@@ -43,6 +43,49 @@ The fastest way to try WikiTomte-LLM in a browser:
 
 The web app runs random search only (v1). Era-builder, freeform queries, and other CLI options remain available below.
 
+## Web app (Toolforge)
+
+WikiTomte-LLM can run as a public web tool on [Toolforge](https://wikitech.wikimedia.org/wiki/Help:Toolforge) using the [Build Service](https://wikitech.wikimedia.org/wiki/Help:Toolforge/Building_container_images). Streamlit is not compatible with Toolforge's traditional uWSGI Python webservice, so deployment uses a `Procfile` that runs `streamlit run` directly.
+
+**Operator setup** (run on Toolforge after merging deployment files to the public repo):
+
+1. Create the tool: `toolforge tools create wikitomte-llm`
+2. Add yourself as maintainer: `toolforge tools maintainers add wikitomte-llm <your-username>`
+3. Set the User-Agent:
+   ```bash
+   become wikitomte-llm
+   toolforge env set WIKITOMTE_USER_AGENT "WikiTomte-LLM/1.0 (User:YourUsername, you@example.com) WikiTomte-LLM/1.0"
+   ```
+4. Copy the service template to the tool home (optional, simplifies restarts):
+   ```bash
+   cp deploy/service.template ~/service.template
+   ```
+5. Build from the public Git repo:
+   ```bash
+   toolforge build start https://github.com/brittag/WikiTomte-LLM
+   ```
+6. Wait for build status `ok`: `toolforge build show`
+7. Start the webservice: `toolforge webservice buildservice start --mount=none`
+8. Open **https://wikitomte-llm.toolforge.org/**
+
+**Updating after code changes:**
+
+```bash
+git push   # from your local machine
+become wikitomte-llm
+toolforge build start https://github.com/brittag/WikiTomte-LLM
+toolforge webservice buildservice restart
+```
+
+**Logs and debugging:**
+
+```bash
+toolforge webservice buildservice logs -f
+toolforge webservice buildservice shell   # then run `launcher` to test Streamlit directly
+```
+
+If the page loads but buttons or spinners hang, Streamlit may need WebSocket support through the proxy — check logs first. As a troubleshooting step, add `--server.enableCORS=false` to the `Procfile` `web:` command.
+
 ## Set up command-line interface
 
 Download and install the code:
