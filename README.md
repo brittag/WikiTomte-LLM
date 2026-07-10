@@ -17,33 +17,37 @@ This tool was made by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Drea
 
 Web app:
 
-![Screenshot of web app](docs/webapp-screenshot.png)
+Screenshot of web app
 
 Search - CSV output:
 
-![Screenshot of triage](docs/search-triage-screenshot.png)
+Screenshot of triage
 
 Scan - CSV output:
 
-![Screenshot of output](docs/scan-screenshot.png)
+Screenshot of output
 
-## Web app (GitHub Codespaces)
+## Hosted web app
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/brittag/WikiTomte-LLM)
 
-The fastest way to try WikiTomte-LLM in a browser:
+
+### GitHub Codespaces
+
+[Open in GitHub Codespaces](https://codespaces.new/brittag/WikiTomte-LLM)
+
+A fast way to try WikiTomte-LLM in a browser:
 
 1. Click **Open in GitHub Codespaces** above.
 2. Add a [Codespaces secret](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-secrets-for-your-codespaces) named `WIKITOMTE_USER_AGENT` with your contact info, for example:
-   ```
+  ```
    WikiTomte-LLM/1.0 (User:YourUsername, you@example.com) WikiTomte-LLM/1.0
-   ```
+  ```
 3. Rebuild or recreate the codespace if you add the secret after creation.
 4. The Streamlit app opens on port **8501** — search for candidates, review results, then scan.
 
 The web app runs random search only (v1). Era-builder, freeform queries, and other CLI options remain available below.
 
-## Web app (Toolforge)
+### Toolforge
 
 WikiTomte-LLM can run as a public web tool on [Toolforge](https://wikitech.wikimedia.org/wiki/Help:Toolforge) using the [Build Service](https://wikitech.wikimedia.org/wiki/Help:Toolforge/Building_container_images). Streamlit is not compatible with Toolforge's traditional uWSGI Python webservice, so deployment uses a `Procfile` that runs `streamlit run` directly.
 
@@ -52,21 +56,21 @@ WikiTomte-LLM can run as a public web tool on [Toolforge](https://wikitech.wikim
 1. Create the tool: `toolforge tools create wikitomte-llm`
 2. Add yourself as maintainer: `toolforge tools maintainers add wikitomte-llm <your-username>`
 3. Set the User-Agent:
-   ```bash
+  ```bash
    become wikitomte-llm
    toolforge env set WIKITOMTE_USER_AGENT "WikiTomte-LLM/1.0 (User:YourUsername, you@example.com) WikiTomte-LLM/1.0"
-   ```
+  ```
 4. Copy the service template to the tool home (optional, simplifies restarts):
-   ```bash
+  ```bash
    cp deploy/service.template ~/service.template
-   ```
+  ```
 5. Build from the public Git repo:
-   ```bash
+  ```bash
    toolforge build start https://github.com/brittag/WikiTomte-LLM
-   ```
+  ```
 6. Wait for build status `ok`: `toolforge build show`
 7. Start the webservice: `toolforge webservice buildservice start --mount=none`
-8. Open **https://wikitomte-llm.toolforge.org/**
+8. Open **[https://wikitomte-llm.toolforge.org/](https://wikitomte-llm.toolforge.org/)**
 
 **Updating after code changes:**
 
@@ -86,7 +90,7 @@ toolforge webservice buildservice shell   # then run `launcher` to test Streamli
 
 If the page loads but buttons or spinners hang, Streamlit may need WebSocket support through the proxy — check logs first. As a troubleshooting step, add `--server.enableCORS=false` to the `Procfile` `web:` command.
 
-## Set up command-line interface
+## Local setup
 
 Download and install the code:
 
@@ -105,7 +109,17 @@ cp config.example.json config.json
 
 
 
-## Start
+### Local web app
+
+To run the web app:
+
+`streamlit run app.py`
+
+### Command-line interface
+
+
+
+#### Start
 
 **Step 1: Search.** Find candidate articles by searching Wikipedia for random combinations of AI vocabulary words, and review the list of search results with excerpts. Returns a maximum of 100 results by default.
 
@@ -124,7 +138,7 @@ python3 assets/ai_detector.py candidates.txt -o report.csv
 
 See [docs/csv-output.md](docs/csv-output.md) for scan report column meanings.
 
-## Scan a list of articles (skip search)
+#### Scan a list of articles (skip search)
 
 If you already have a list of articles that you want to scan:
 
@@ -134,11 +148,11 @@ python3 assets/ai_detector.py articles.txt -o report.csv
 
 See [examples/articles.txt](examples/articles.txt) for the input format (one title per line; `#` for comments).
 
-## Advanced options
+#### Advanced options
 
 
 
-### Custom search queries
+##### Custom search queries
 
 By default, the search picks a random era, then either three words or a phrase plus two words from the AI vocabulary. If you want to search using your own CirrusSearch strings, use `--query` with `--era`:
 
@@ -150,7 +164,7 @@ python3 assets/search_triage.py \
 
 More query modes and examples: [docs/search-triage.md](docs/search-triage.md).
 
-### Scan options
+##### Scan options
 
 Restrict to one era band (`gpt4`, `gpt4o`, `gpt5`, or `generic`):
 

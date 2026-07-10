@@ -39,6 +39,7 @@ from ai_detector import (
     normalize_pageid,
 )
 from config import get_user_agent
+from wikimedia_http import get_with_backoff
 
 log = logging.getLogger("search_triage")
 
@@ -95,13 +96,7 @@ class CirrusSearchClient:
         if offset:
             params["sroffset"] = offset
 
-        resp = self.session.get(WIKIPEDIA_API, params=params, timeout=30)
-        if resp.status_code == 403:
-            raise PermissionError(
-                "403 Forbidden — check User-Agent in config.json. "
-                "See Wikimedia User-Agent policy."
-            )
-        resp.raise_for_status()
+        resp = get_with_backoff(self.session, WIKIPEDIA_API, params)
         data = resp.json()
         results = data.get("query", {}).get("search", [])
         has_more = "continue" in data and len(results) >= min(limit, 500)
@@ -124,12 +119,7 @@ class CirrusSearchClient:
 
         while len(all_results) < max_results:
             self._rate_limit()
-            resp = self.session.get(WIKIPEDIA_API, params=params, timeout=30)
-            if resp.status_code == 403:
-                raise PermissionError(
-                    "403 Forbidden — check User-Agent in config.json."
-                )
-            resp.raise_for_status()
+            resp = get_with_backoff(self.session, WIKIPEDIA_API, params)
             data = resp.json()
             results = data.get("query", {}).get("search", [])
             if not results:
@@ -166,12 +156,7 @@ class CirrusSearchClient:
                 "rvslots": "main",
                 "rvsection": "0",
             }
-            resp = self.session.get(WIKIPEDIA_API, params=params, timeout=30)
-            if resp.status_code == 403:
-                raise PermissionError(
-                    "403 Forbidden — check User-Agent in config.json."
-                )
-            resp.raise_for_status()
+            resp = get_with_backoff(self.session, WIKIPEDIA_API, params)
             data = resp.json()
             for page in data.get("query", {}).get("pages", []):
                 pid = normalize_pageid(page.get("pageid"))

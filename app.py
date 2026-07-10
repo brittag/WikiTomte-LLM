@@ -15,9 +15,15 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "assets"))
 
-from ai_detector import format_report_csv, parse_article_titles, run_batch_from_titles
+from ai_detector import (
+    MAX_SCAN_TITLES,
+    format_report_csv,
+    parse_article_titles,
+    run_batch_from_titles,
+)
 from config import get_user_agent
 from search_triage import format_triage_csv, run_triage, titles_for_scan
+from wikimedia_http import RateLimitError
 
 DEFAULT_LIMIT = 50
 DEFAULT_DELAY = 0.5
@@ -419,7 +425,7 @@ div[data-testid="stExpander"] {{
             candidates = titles_for_scan(result["rows"])
             st.session_state.scan_titles_text = "\n".join(candidates)
             st.session_state.scan_report = None
-        except (ValueError, PermissionError) as exc:
+        except (ValueError, PermissionError, RateLimitError) as exc:
             st.error(str(exc))
 
     result = st.session_state.search_result
@@ -471,11 +477,15 @@ div[data-testid="stExpander"] {{
         key="scan_titles_text",
         placeholder="Paste article titles here, or run a search above",
     )
+    st.caption(f"Up to {MAX_SCAN_TITLES} titles per scan.")
 
     run_scan = st.button("Run scan", type="primary")
 
     if run_scan:
-        titles = parse_article_titles(st.session_state.scan_titles_text)
+        titles = parse_article_titles(
+            st.session_state.scan_titles_text,
+            max_titles=MAX_SCAN_TITLES,
+        )
         if not titles:
             st.error("Add at least one article title to scan.")
         else:
@@ -491,7 +501,7 @@ div[data-testid="stExpander"] {{
                         write_stdout=False,
                     )
                 st.session_state.scan_report = report
-            except (ValueError, PermissionError) as exc:
+            except (ValueError, PermissionError, RateLimitError) as exc:
                 st.error(str(exc))
 
     report = st.session_state.scan_report

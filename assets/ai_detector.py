@@ -45,11 +45,14 @@ except ImportError:
     sys.exit(1)
 
 from config import get_user_agent
+from wikimedia_http import RATE_LIMIT_MESSAGE, RateLimitError, get_with_backoff
 
 log = logging.getLogger("ai_detector")
 
 VOCAB_PATH = Path(__file__).resolve().parent / "ai_vocab.json"
 WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
+MAX_TITLE_LENGTH = 255
+MAX_SCAN_TITLES = 50
 PASSAGE_CONTEXT_CHARS = 200
 PASSAGE_CLUSTER_GAP = 400
 
@@ -103,12 +106,7 @@ class WikimediaClient:
     def query(self, params: Dict[str, Any]) -> Dict[str, Any]:
         self._rate_limit()
         merged = {"action": "query", "format": "json", "formatversion": "2", **params}
-        resp = self.session.get(WIKIPEDIA_API, params=merged, timeout=30)
-        if resp.status_code == 403:
-            raise PermissionError(
-                "403 Forbidden — check User-Agent. See Wikimedia User-Agent policy."
-            )
-        resp.raise_for_status()
+        resp = get_with_backoff(self.session, WIKIPEDIA_API, merged)
         return resp.json()
 
     def _rate_limit(self) -> None:
@@ -145,14 +143,35 @@ def read_article_list(path: Path) -> List[str]:
     return titles
 
 
-def parse_article_titles(text: str) -> List[str]:
+def validate_article_title(title: str, *, line_no: int | None = None) -> str:
+    """Validate a single title; raise ValueError with a clear message if invalid."""
+    location = f" on line {line_no}" if line_no is not None else ""
+    if len(title) > MAX_TITLE_LENGTH:
+        raise ValueError(
+            f"Article title exceeds {MAX_TITLE_LENGTH} characters{location}: "
+            f"{title[:40]}…"
+        )
+    if "|" in title:
+        raise ValueError(
+            f"Pipe character (|) is not allowed in article titles{location}: {title}"
+        )
+    return title
+
+
+def parse_article_titles(
+    text: str,
+    *,
+    max_titles: int | None = None,
+) -> List[str]:
     """Parse article titles from multiline text (same rules as read_article_list)."""
     titles: List[str] = []
-    for line in text.splitlines():
-        line = line.strip()
+    for line_no, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        titles.append(line)
+        titles.append(validate_article_title(line, line_no=line_no))
+    if max_titles is not None and len(titles) > max_titles:
+        raise ValueError(f"Maximum {max_titles} article titles allowed per scan.")
     return titles
 
 
@@ -835,6 +854,10 @@ def run_batch_from_titles(
         try:
             results = scan_article(client, title, eras, vocab_data, min_score)
             articles.extend(results)
+        except RateLimitError as exc:
+            log.warning("Rate limited while scanning %s: %s", title, exc)
+            errors.append({"title": title, "error": RATE_LIMIT_MESSAGE})
+            break
         except Exception as exc:
             log.warning("Failed to scan %s: %s", title, exc)
             errors.append({"title": title, "error": str(exc)})

@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ai_detector import (
     AI_GENERATED_CAUTION,
+    MAX_SCAN_TITLES,
+    MAX_TITLE_LENGTH,
     Section,
     _articles_for_csv,
     cluster_passages,
@@ -25,6 +27,7 @@ from ai_detector import (
     load_vocab,
     page_has_ai_generated_category,
     page_is_ai_tagged,
+    parse_article_titles,
     prepare_article,
     read_article_list,
     resolve_eras,
@@ -324,6 +327,31 @@ class TestInputFile(unittest.TestCase):
         self.assertIn("Albert Einstein", titles)
         self.assertIn("Python (programming language)", titles)
         self.assertEqual(len(titles), 2)
+
+    def test_parse_article_titles_valid_input(self):
+        text = "Albert Einstein\n# comment\n\nPython (programming language)"
+        self.assertEqual(
+            parse_article_titles(text),
+            ["Albert Einstein", "Python (programming language)"],
+        )
+
+    def test_parse_article_titles_rejects_pipe(self):
+        with self.assertRaises(ValueError) as ctx:
+            parse_article_titles("Foo|Bar")
+        self.assertIn("Pipe character", str(ctx.exception))
+        self.assertIn("line 1", str(ctx.exception))
+
+    def test_parse_article_titles_rejects_long_title(self):
+        long_title = "A" * (MAX_TITLE_LENGTH + 1)
+        with self.assertRaises(ValueError) as ctx:
+            parse_article_titles(long_title)
+        self.assertIn(str(MAX_TITLE_LENGTH), str(ctx.exception))
+
+    def test_parse_article_titles_enforces_max_titles(self):
+        titles = "\n".join(f"Article {i}" for i in range(MAX_SCAN_TITLES + 1))
+        with self.assertRaises(ValueError) as ctx:
+            parse_article_titles(titles, max_titles=MAX_SCAN_TITLES)
+        self.assertIn(str(MAX_SCAN_TITLES), str(ctx.exception))
 
 
 class TestReportSchema(unittest.TestCase):
