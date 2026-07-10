@@ -17,27 +17,23 @@ This tool was made by [User:Dreamyshade](https://en.wikipedia.org/wiki/User:Drea
 
 Web app:
 
-Screenshot of web app
+![Screenshot of web app](docs/webapp-screenshot.png)
 
 Search - CSV output:
 
-Screenshot of triage
+![Screenshot of triage](docs/search-triage-screenshot.png)
 
 Scan - CSV output:
 
-Screenshot of output
+![Screenshot of output](docs/scan-screenshot.png)
 
 ## Hosted web app
 
-
-
 ### GitHub Codespaces
-
-[Open in GitHub Codespaces](https://codespaces.new/brittag/WikiTomte-LLM)
 
 A fast way to try WikiTomte-LLM in a browser:
 
-1. Click **Open in GitHub Codespaces** above.
+1. Click [Open in GitHub Codespaces](https://codespaces.new/brittag/WikiTomte-LLM).
 2. Add a [Codespaces secret](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-secrets-for-your-codespaces) named `WIKITOMTE_USER_AGENT` with your contact info, for example:
   ```
    WikiTomte-LLM/1.0 (User:YourUsername, you@example.com) WikiTomte-LLM/1.0
@@ -45,50 +41,7 @@ A fast way to try WikiTomte-LLM in a browser:
 3. Rebuild or recreate the codespace if you add the secret after creation.
 4. The Streamlit app opens on port **8501** — search for candidates, review results, then scan.
 
-The web app runs random search only (v1). Era-builder, freeform queries, and other CLI options remain available below.
-
-### Toolforge
-
-WikiTomte-LLM can run as a public web tool on [Toolforge](https://wikitech.wikimedia.org/wiki/Help:Toolforge) using the [Build Service](https://wikitech.wikimedia.org/wiki/Help:Toolforge/Building_container_images). Streamlit is not compatible with Toolforge's traditional uWSGI Python webservice, so deployment uses a `Procfile` that runs `streamlit run` directly.
-
-**Operator setup** (run on Toolforge after merging deployment files to the public repo):
-
-1. Create the tool: `toolforge tools create wikitomte-llm`
-2. Add yourself as maintainer: `toolforge tools maintainers add wikitomte-llm <your-username>`
-3. Set the User-Agent:
-  ```bash
-   become wikitomte-llm
-   toolforge env set WIKITOMTE_USER_AGENT "WikiTomte-LLM/1.0 (User:YourUsername, you@example.com) WikiTomte-LLM/1.0"
-  ```
-4. Copy the service template to the tool home (optional, simplifies restarts):
-  ```bash
-   cp deploy/service.template ~/service.template
-  ```
-5. Build from the public Git repo:
-  ```bash
-   toolforge build start https://github.com/brittag/WikiTomte-LLM
-  ```
-6. Wait for build status `ok`: `toolforge build show`
-7. Start the webservice: `toolforge webservice buildservice start --mount=none`
-8. Open **[https://wikitomte-llm.toolforge.org/](https://wikitomte-llm.toolforge.org/)**
-
-**Updating after code changes:**
-
-```bash
-git push   # from your local machine
-become wikitomte-llm
-toolforge build start https://github.com/brittag/WikiTomte-LLM
-toolforge webservice buildservice restart
-```
-
-**Logs and debugging:**
-
-```bash
-toolforge webservice buildservice logs -f
-toolforge webservice buildservice shell   # then run `launcher` to test Streamlit directly
-```
-
-If the page loads but buttons or spinners hang, Streamlit may need WebSocket support through the proxy — check logs first. As a troubleshooting step, add `--server.enableCORS=false` to the `Procfile` `web:` command.
+The web app runs random search only. Era-builder, freeform queries, and other CLI options are available below.
 
 ## Local setup
 
@@ -107,8 +60,6 @@ cp config.example.json config.json
 # Edit config.json to add your contact info
 ```
 
-
-
 ### Local web app
 
 To run the web app:
@@ -116,8 +67,6 @@ To run the web app:
 `streamlit run app.py`
 
 ### Command-line interface
-
-
 
 #### Start
 
@@ -149,8 +98,6 @@ python3 assets/ai_detector.py articles.txt -o report.csv
 See [examples/articles.txt](examples/articles.txt) for the input format (one title per line; `#` for comments).
 
 #### Advanced options
-
-
 
 ##### Custom search queries
 
