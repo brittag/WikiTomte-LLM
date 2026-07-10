@@ -3,27 +3,17 @@
 
 from __future__ import annotations
 
-import base64
 import html
 import sys
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "assets"))
 
-from ai_detector import (
-    MAX_SCAN_TITLES,
-    format_report_csv,
-    parse_article_titles,
-    run_batch_from_titles,
-)
 from config import get_user_agent
-from search_triage import format_triage_csv, run_triage, titles_for_scan
-from wikimedia_http import RateLimitError
 
 DEFAULT_LIMIT = 50
 DEFAULT_DELAY = 0.5
@@ -34,7 +24,7 @@ TABLE_MAX_HEIGHT = 600
 # LinkColumn display_text only supports static text or a URL regex — not another
 # column. Extract the article name from the Wikipedia /wiki/ path for display.
 ARTICLE_LINK_DISPLAY = r".*/wiki/([^#?&]+)"
-TOMTE_IMAGE = Path(__file__).resolve().parent / "docs" / "jenny-nystrom-tomte.png"
+TOMTE_IMAGE_URL = "/app/static/jenny-nystrom-tomte.png"
 
 
 def _article_link(url: str, title: str) -> str:
@@ -43,12 +33,6 @@ def _article_link(url: str, title: str) -> str:
 
 def _table_height(row_count: int) -> int:
     return min(35 * max(row_count, 1) + 38, TABLE_MAX_HEIGHT)
-
-
-@st.cache_data
-def _tomte_img_src() -> str:
-    data = base64.b64encode(TOMTE_IMAGE.read_bytes()).decode()
-    return f"data:image/png;base64,{data}"
 
 
 def _group_triage_rows(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -207,7 +191,9 @@ def _collapse_articles_for_display(articles: list[dict[str, Any]]) -> list[dict[
     return collapsed
 
 
-def _scan_report_to_display_dataframe(report: dict[str, Any]) -> pd.DataFrame:
+def _scan_report_to_display_dataframe(report: dict[str, Any]):
+    import pandas as pd
+
     articles = _collapse_articles_for_display(report.get("articles", []))
     articles.sort(
         key=lambda article: (
@@ -264,7 +250,7 @@ def _scan_report_to_display_dataframe(report: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _render_scan_table(df: pd.DataFrame) -> None:
+def _render_scan_table(df) -> None:
     st.dataframe(
         df,
         width="stretch",
@@ -349,8 +335,12 @@ def main() -> None:
     top: 0.75rem;
     right: 0;
     width: 200px;
-    height: auto;
     pointer-events: none;
+}}
+.wikitomte-tomte img {{
+    width: 200px;
+    height: auto;
+    display: block;
 }}
 h1#wiki-tomte-llm {{
     font-size: 2rem;
@@ -370,7 +360,10 @@ div[data-testid="stExpander"] {{
     margin-top: 0.5rem;
 }}
 </style>
-<img class="wikitomte-tomte" src="{_tomte_img_src()}" alt="">
+<picture class="wikitomte-tomte">
+  <source media="(min-width: 769px)" srcset="{TOMTE_IMAGE_URL}">
+  <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="1" height="1">
+</picture>
         """,
         unsafe_allow_html=True,
     )
@@ -406,6 +399,9 @@ div[data-testid="stExpander"] {{
     run_search = st.button("Run search", type="primary")
 
     if run_search:
+        from search_triage import run_triage, titles_for_scan
+        from wikimedia_http import RateLimitError
+
         try:
             with st.spinner("Searching Wikipedia…"):
                 result = run_triage(
@@ -430,6 +426,8 @@ div[data-testid="stExpander"] {{
 
     result = st.session_state.search_result
     if result:
+        from search_triage import format_triage_csv, titles_for_scan
+
         counts = result.get("prioritize", {})
         st.success(
             f"**{result['total']}** results — "
@@ -453,7 +451,7 @@ div[data-testid="stExpander"] {{
                 file_name="triage.csv",
                 mime="text/csv",
             )
-        
+
         st.caption(
             "See [search output docs](https://github.com/brittag/WikiTomte-LLM/blob/main/docs/search-triage.md) for CSV column meanings."
         )
@@ -477,11 +475,18 @@ div[data-testid="stExpander"] {{
         key="scan_titles_text",
         placeholder="Paste article titles here, or run a search above",
     )
-    st.caption(f"Up to {MAX_SCAN_TITLES} titles per scan.")
+    st.caption("Up to 50 titles per scan.")
 
     run_scan = st.button("Run scan", type="primary")
 
     if run_scan:
+        from ai_detector import (
+            MAX_SCAN_TITLES,
+            parse_article_titles,
+            run_batch_from_titles,
+        )
+        from wikimedia_http import RateLimitError
+
         titles = parse_article_titles(
             st.session_state.scan_titles_text,
             max_titles=MAX_SCAN_TITLES,
@@ -506,6 +511,8 @@ div[data-testid="stExpander"] {{
 
     report = st.session_state.scan_report
     if report:
+        from ai_detector import format_report_csv
+
         summary = report.get("summary", {})
         st.success(
             f"Scanned **{summary.get('scanned', 0)}** of **{summary.get('total', 0)}** articles — "
@@ -534,12 +541,12 @@ div[data-testid="stExpander"] {{
         [GPTZero Provenance Tool for Wikipedia](https://wikipedia.gptzero.me/) is a free-to-use tool that can help you check a suspicious article, but you need to make your own determination.
 
         This code is open source: **[WikiTomte-LLM](https://github.com/brittag/WikiTomte-LLM)**. File issues and pull requests in the repository, or write a note at [User talk:Dreamyshade](https://en.wikipedia.org/wiki/User_talk:Dreamyshade).
-        
+
         To run searches with custom vocabulary, or to search and scan a larger number of articles, [use the command-line tool available from the repository](https://github.com/brittag/WikiTomte-LLM#setup).
 
         This was made by [Dreamyshade](https://en.wikipedia.org/wiki/User:Dreamyshade) based on [Gnomingstuff's guide](https://en.wikipedia.org/wiki/User:Gnomingstuff/Guide_to_finding_AI-generated_text), with [Wikipedia-AI-Skills](https://github.com/fuzheado/Wikipedia-AI-Skills) by [Fuzheado](https://en.wikipedia.org/wiki/User:Fuzheado), using [Cursor](https://en.wikipedia.org/wiki/Cursor_(company)). The web framework is [Streamlit](https://streamlit.io/). Check out [WikiProject AI Tools](https://en.wikipedia.org/wiki/Wikipedia:WikiProject_AI_Tools) if you're interested in using LLMs to help you make tools to help Wikipedia editors.
-        
-        A [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a [household spirit](https://en.wikipedia.org/wiki/Household_deity), a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always. The illustration at top right is by [Jenny Nyström](https://en.wikipedia.org/wiki/Jenny_Nystr%C3%B6m). Like most of her work, it is in the public domain, at least in the United States.
+
+        A [tomte](https://en.wikipedia.org/wiki/Nisse_(folklore)) in Nordic folklore is a [household spirit](https://en.wikipedia.org/wiki/Household_deity), a small person-like creature who lives in your house, a bit like a [gnome](https://en.wikipedia.org/wiki/Wikipedia:WikiGnome), who is mostly helpful but not always. The illustration at top right (in the desktop view; omitted on mobile) is by [Jenny Nyström](https://en.wikipedia.org/wiki/Jenny_Nystr%C3%B6m). Like most of her work, it is in the public domain, at least in the United States.
         """
     )
 
